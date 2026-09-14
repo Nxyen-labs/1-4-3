@@ -81,7 +81,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <span>🛰️</span> Operational Data Ingestion Hub
+              <span>️</span> Operational Data Ingestion Hub
             </h2>
             <p className="text-sm text-slate-400 mt-1">
               Upload real satellite SAR imagery for automatic segmentation or AIS CSV logs for trajectory & attribution analysis.
@@ -96,7 +96,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
                   : 'bg-navy-700 text-slate-300 hover:bg-navy-600'
               }`}
             >
-              🛰️ SAR Satellite Imagery
+              ️ SAR Satellite Imagery
             </button>
             <button
               onClick={() => setActiveTab('ais')}
@@ -106,7 +106,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
                   : 'bg-navy-700 text-slate-300 hover:bg-navy-600'
               }`}
             >
-              📡 Historic AIS Data
+               Historic AIS Data
             </button>
             <button
               onClick={() => setActiveTab('instructions')}
@@ -116,7 +116,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
                   : 'bg-navy-700 text-slate-300 hover:bg-navy-600'
               }`}
             >
-              💻 File Paths & CLI
+               File Paths & CLI
             </button>
           </div>
         </div>
@@ -127,7 +127,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card p-6 bg-navy-800/80 border border-navy-700">
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <span>📷</span> Upload SAR Image for Segmentation
+              <span></span> Upload SAR Image for Segmentation
             </h3>
 
             <form onSubmit={handleSarSubmit} className="space-y-4">
@@ -220,7 +220,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
                     Analyzing SAR Backscatter & Computing Contours...
                   </>
                 ) : (
-                  <>🚀 Analyze SAR & Detect Oil Slick</>
+                  <> Analyze SAR & Detect Oil Slick</>
                 )}
               </button>
             </form>
@@ -229,7 +229,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
           {/* Analysis Results preview */}
           <div className="card p-6 bg-navy-800/80 border border-navy-700">
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <span>📊</span> Extraction & Detection Telemetry
+              <span></span> Extraction & Detection Telemetry
             </h3>
 
             {sarResult ? (
@@ -271,7 +271,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
               </div>
             ) : (
               <div className="h-64 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-navy-600 rounded-xl">
-                <span className="text-4xl mb-3">🛰️</span>
+                <span className="text-4xl mb-3">️</span>
                 <p className="text-sm font-medium text-slate-300">Awaiting SAR Satellite Imagery</p>
                 <p className="text-xs text-slate-400 mt-1 max-w-xs">
                   Upload an image on the left to extract contour geometries, estimate age, and trigger backward drift tracing.
@@ -287,7 +287,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card p-6 bg-navy-800/80 border border-navy-700">
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <span>📡</span> Upload Real AIS CSV Log
+              <span></span> Upload Real AIS CSV Log
             </h3>
 
             <form onSubmit={handleAisSubmit} className="space-y-4">
@@ -332,7 +332,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
                     Parsing AIS Records & Correlating Trajectories...
                   </>
                 ) : (
-                  <>📥 Ingest AIS Dataset</>
+                  <> Ingest AIS Dataset</>
                 )}
               </button>
             </form>
@@ -341,7 +341,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
           {/* AIS Result preview */}
           <div className="card p-6 bg-navy-800/80 border border-navy-700">
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <span>🚢</span> Ingested Vessel Fleet Status
+              <span></span> Ingested Vessel Fleet Status
             </h3>
 
             {aisResult ? (
@@ -376,7 +376,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
               </div>
             ) : (
               <div className="h-64 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-navy-600 rounded-xl">
-                <span className="text-4xl mb-3">📡</span>
+                <span className="text-4xl mb-3"></span>
                 <p className="text-sm font-medium text-slate-300">No New AIS File Processed Yet</p>
                 <p className="text-xs text-slate-400 mt-1 max-w-xs">
                   Upload an AIS CSV file to populate vessel trajectories, evaluate speed drops, course deviations, and AIS transmission gaps.
@@ -391,13 +391,13 @@ export default function DataUploadSection({ onUploadSuccess }) {
       {activeTab === 'instructions' && (
         <div className="card p-6 bg-navy-800/80 border border-navy-700 space-y-6">
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <span>💻</span> Where to Place Files & Command Line Processing
+            <span></span> Where to Place Files & Command Line Processing
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="p-4 bg-navy-900/80 rounded-xl border border-navy-700 space-y-3">
               <h4 className="font-bold text-blue-400 text-sm flex items-center gap-2">
-                <span>📁</span> Option 1: File System Folders
+                <span></span> Option 1: File System Folders
               </h4>
               <p className="text-xs text-slate-300">
                 You can place your raw files directly into the backend directories:
