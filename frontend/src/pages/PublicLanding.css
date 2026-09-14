@@ -289,82 +289,88 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 36px;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  padding: 0 clamp(16px, 2vw, 36px);
+  height: 64px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid #d4e6f1;
   position: sticky;
   top: 0;
   z-index: 100;
   transition: background 0.3s ease;
+  box-sizing: border-box;
+  flex-wrap: nowrap;
 }
 
 .landing-dark .nav-brand {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .landing-dark .nav-brand-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: #2980b9;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(41, 128, 185, 0.15);
-}
-
-.landing-dark .nav-brand-icon svg {
-  width: 22px;
-  height: 22px;
-  fill: white;
+  flex-shrink: 0;
 }
 
 .landing-dark .nav-brand-title {
   font-weight: 900;
-  font-size: 1.3rem;
+  font-size: 1.25rem;
   color: #0f172a;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.2px;
+  line-height: 1.1;
 }
 
 .landing-dark .nav-brand-sub {
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   color: #0284c7;
-  font-weight: 700;
-  letter-spacing: 0.4px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .landing-dark .nav-links {
   display: flex;
-  gap: 24px;
+  gap: clamp(8px, 1.2vw, 20px);
   align-items: center;
+  flex-wrap: nowrap;
+  flex-shrink: 1;
+  margin: 0 12px;
 }
 
 .landing-dark .nav-links a {
   color: #4a6274;
   text-decoration: none;
-  font-size: 0.82rem;
+  font-size: clamp(0.74rem, 0.8vw, 0.82rem);
   font-weight: 600;
   transition: color 0.2s ease;
   position: relative;
+  white-space: nowrap !important;
+  display: inline-block;
+  line-height: 1;
+  padding: 4px 0;
 }
 
 .landing-dark .nav-links a:hover {
-  color: #2980b9;
+  color: #0284c7;
 }
 
 .landing-dark .nav-links a::after {
   content: '';
   position: absolute;
-  bottom: -4px;
+  bottom: -2px;
   left: 0;
   width: 0;
   height: 2px;
-  background: #2980b9;
+  background: #0284c7;
   transition: width 0.3s ease;
 }
 
@@ -374,40 +380,54 @@
 
 .landing-dark .nav-actions {
   display: flex;
-  gap: 14px;
+  gap: 10px;
   align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .landing-dark .nav-emergency {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(239, 68, 68, 0.12);
-  padding: 6px 14px;
+  background: rgba(239, 68, 68, 0.08);
+  padding: 6px 12px;
   border-radius: 20px;
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  font-size: 0.78rem;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  font-size: 0.76rem;
   color: #f87171;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1180px) {
+  .landing-dark .nav-emergency {
+    display: none;
+  }
 }
 
 .landing-dark .nav-login-btn {
-  display: inline-block;
-  background: #2980b9;
+  display: inline-flex;
+  align-items: center;
+  background: #0284c7;
   color: #ffffff;
-  padding: 8px 20px;
+  padding: 7px 16px;
   border-radius: 8px;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-decoration: none;
   letter-spacing: 0.3px;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(41, 128, 185, 0.12);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.18);
 }
 
 .landing-dark .nav-login-btn:hover {
+  background: #0369a1;
   transform: translateY(-1px);
-  box-shadow: 0 3px 12px rgba(41, 128, 185, 0.2);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
 }
 
 /* ── Hero Section ── */
