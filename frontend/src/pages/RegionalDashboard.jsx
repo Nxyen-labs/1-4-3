@@ -79,11 +79,11 @@ export default function RegionalDashboard() {
   });
 
   const navItems = [
-    { id: 'overview', icon: '📊', label: 'Region Overview', active: activeSection === 'overview', onClick: () => setActiveSection('overview') },
-    { id: 'map', icon: '🗺️', label: 'Regional Map', active: activeSection === 'map', onClick: () => setActiveSection('map') },
-    { id: 'spills', icon: '🛢️', label: 'Spills', active: activeSection === 'spills', onClick: () => setActiveSection('spills') },
-    { id: 'vessels', icon: '🚢', label: 'Vessel Classification', active: activeSection === 'vessels', onClick: () => setActiveSection('vessels') },
-    { id: 'reports', icon: '📄', label: 'Reports', active: activeSection === 'reports', onClick: () => setActiveSection('reports') },
+    { id: 'overview', icon: '', label: 'Region Overview', active: activeSection === 'overview', onClick: () => setActiveSection('overview') },
+    { id: 'map', icon: '', label: 'Regional Map', active: activeSection === 'map', onClick: () => setActiveSection('map') },
+    { id: 'spills', icon: '', label: 'Spills', active: activeSection === 'spills', onClick: () => setActiveSection('spills') },
+    { id: 'vessels', icon: '', label: 'Vessel Classification', active: activeSection === 'vessels', onClick: () => setActiveSection('vessels') },
+    { id: 'reports', icon: '', label: 'Reports', active: activeSection === 'reports', onClick: () => setActiveSection('reports') },
   ];
 
   if (loading) {
@@ -163,7 +163,7 @@ export default function RegionalDashboard() {
         <div className="card" style={{ marginBottom: '16px' }}>
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h3>🗺️ Regional Map — {region.replace(/_/g, ' ').toUpperCase()}</h3>
+              <h3>Regional Map — {region.replace(/_/g, ' ').toUpperCase()}</h3>
               <p style={{ fontSize: '0.75rem', color: '#6b9fd4', margin: '2px 0 0 0' }}>
                 Showing {filteredSpills.length} spill incident{filteredSpills.length === 1 ? '' : 's'} detected in your jurisdiction
               </p>
@@ -260,7 +260,7 @@ export default function RegionalDashboard() {
 
       {activeSection === 'reports' && (
         <>
-          <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>📄 Report Generation</h3>
+          <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>Report Generation</h3>
           <div className="card">
             <div className="card-header"><h3>Generate PDF Evidence Report</h3></div>
             <div className="card-body" style={{ padding: 0 }}>
@@ -277,7 +277,7 @@ export default function RegionalDashboard() {
                       <td>
                         <button className="btn btn-primary btn-sm" disabled={downloading}
                           onClick={() => handleDownloadReport(s.id)}>
-                          {downloading ? 'Generating...' : '📥 Download PDF'}
+                          {downloading ? 'Generating...' : 'Download PDF'}
                         </button>
                       </td>
                     </tr>
