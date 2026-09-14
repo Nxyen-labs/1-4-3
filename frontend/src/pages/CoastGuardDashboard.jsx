@@ -6,10 +6,9 @@ import {
 } from 'recharts';
 import MapView, { detectSectorForSpill } from '../components/map/MapView';
 import ShipDriftAnimation from '../components/map/ShipDriftAnimation';
-import DataUploadSection from '../components/upload/DataUploadSection';
 
 const ANOMALY_ICONS = {
-  speed_drop: '🐌', ais_gap: '📡', course_change: '↩️', route_deviation: '🔀'
+  speed_drop: '', ais_gap: '', course_change: '↩️', route_deviation: ''
 };
 
 const ANOMALY_LABELS = {
@@ -120,14 +119,13 @@ export default function CoastGuardDashboard() {
   };
 
   const navItems = [
-    { id: 'overview', icon: '📊', label: 'Overview', active: activeSection === 'overview', onClick: () => setActiveSection('overview') },
-    { id: 'animation', icon: '🎬', label: 'Ship & Drift Replay', active: activeSection === 'animation', onClick: () => setActiveSection('animation') },
-    { id: 'map', icon: '🗺️', label: 'Tactical Map', active: activeSection === 'map', onClick: () => setActiveSection('map') },
-    { id: 'suspects', icon: '🚢', label: 'Suspect Vessels', active: activeSection === 'suspects', onClick: () => setActiveSection('suspects') },
-    { id: 'anomalies', icon: '🔔', label: 'Anomaly Alerts', active: activeSection === 'anomalies', onClick: () => setActiveSection('anomalies') },
+    { id: 'overview', icon: '', label: 'Overview', active: activeSection === 'overview', onClick: () => setActiveSection('overview') },
+    { id: 'animation', icon: '', label: 'Ship & Drift Replay', active: activeSection === 'animation', onClick: () => setActiveSection('animation') },
+    { id: 'map', icon: '️', label: 'Tactical Map', active: activeSection === 'map', onClick: () => setActiveSection('map') },
+    { id: 'suspects', icon: '', label: 'Suspect Vessels', active: activeSection === 'suspects', onClick: () => setActiveSection('suspects') },
+    { id: 'anomalies', icon: '', label: 'Anomaly Alerts', active: activeSection === 'anomalies', onClick: () => setActiveSection('anomalies') },
     { id: 'validation', icon: '✅', label: 'Spill Validation', active: activeSection === 'validation', onClick: () => setActiveSection('validation') },
-    { id: 'drift', icon: '🌊', label: 'Drift Analysis', active: activeSection === 'drift', onClick: () => setActiveSection('drift') },
-    { id: 'upload', icon: '🛰️', label: 'Upload SAR Satellite Image', active: activeSection === 'upload', onClick: () => setActiveSection('upload') },
+    { id: 'drift', icon: '', label: 'Drift Analysis', active: activeSection === 'drift', onClick: () => setActiveSection('drift') },
   ];
 
   if (loading) {
@@ -170,7 +168,7 @@ export default function CoastGuardDashboard() {
           }}>
             <div>
               <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.95rem' }}>
-                🎬 4D Ship & Hydrodynamic Drift Reconstruction Ready
+                 4D Ship & Hydrodynamic Drift Reconstruction Ready
               </div>
               <div style={{ color: '#a8c8e8', fontSize: '0.8rem', marginTop: '2px' }}>
                 Replay AIS track of suspect tanker MT ARABIAN GLORY, transponder gap, speed drop, and origin probability cone.
@@ -191,7 +189,7 @@ export default function CoastGuardDashboard() {
           <div className="card" style={{ marginBottom: '16px' }}>
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h3 style={{ margin: 0 }}>🗺️ Live Maritime Operations Map</h3>
+                <h3 style={{ margin: 0 }}>️ Live Maritime Operations Map</h3>
                 <span style={{ fontSize: '0.75rem', color: '#6b9fd4' }}>Dedicated sector zoom — Click slick or vessel for telemetry</span>
               </div>
             </div>
@@ -248,7 +246,7 @@ export default function CoastGuardDashboard() {
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🎬 4D Ship AIS Trajectory & Hydrodynamic Drift Reconstruction
+                   4D Ship AIS Trajectory & Hydrodynamic Drift Reconstruction
                 </h3>
                 <div style={{ fontSize: '0.75rem', color: '#6b9fd4', marginTop: '4px' }}>
                   Tracing {selectedSpill?.name || 'SPILL-20240315-001'} backward origin probability cone + vessel transponder behavior
@@ -271,18 +269,18 @@ export default function CoastGuardDashboard() {
           {/* Key Behavioral Anomaly Findings */}
           <div className="card">
             <div className="card-header">
-              <h3>🔍 Automated AIS Behavioral Correlation Findings</h3>
+              <h3> Automated AIS Behavioral Correlation Findings</h3>
             </div>
             <div className="card-body">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
                 <div style={{ background: '#fdf0f1', border: '1px solid #dc3545', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ fontWeight: 700, color: '#dc3545', marginBottom: '4px' }}>📡 75-Min AIS Transponder Gap</div>
+                  <div style={{ fontWeight: 700, color: '#dc3545', marginBottom: '4px' }}> 75-Min AIS Transponder Gap</div>
                   <p style={{ fontSize: '0.75rem', color: '#333', margin: 0 }}>
                     MT ARABIAN GLORY stopped transmitting AIS 3.5h prior to detection precisely when crossing the estimated backward origin cone.
                   </p>
                 </div>
                 <div style={{ background: '#fffbf0', border: '1px solid #f0ad4e', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ fontWeight: 700, color: '#b7791f', marginBottom: '4px' }}>🐌 Speed Drop to 3.5 Knots</div>
+                  <div style={{ fontWeight: 700, color: '#b7791f', marginBottom: '4px' }}> Speed Drop to 3.5 Knots</div>
                   <p style={{ fontSize: '0.75rem', color: '#333', margin: 0 }}>
                     Vessel speed dropped from cruising 13.8 kn to 3.5 kn for 45 minutes near origin centroid (consistent with illicit oily bilge wash discharge).
                   </p>
@@ -304,7 +302,7 @@ export default function CoastGuardDashboard() {
         <div className="card">
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
             <div>
-              <h3 style={{ margin: 0 }}>🗺️ Tactical Maritime Patrol Map</h3>
+              <h3 style={{ margin: 0 }}>️ Tactical Maritime Patrol Map</h3>
               <span style={{ fontSize: '0.75rem', color: '#6b9fd4' }}>Dedicated area zoom — Zero country-wide clutter</span>
             </div>
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -358,7 +356,7 @@ export default function CoastGuardDashboard() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
               <div>
                 <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#6b9fd4', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  🎯 Target Spill Incident
+                   Target Spill Incident
                 </span>
                 <h3 style={{ fontSize: '1.15rem', color: '#fff', margin: '2px 0 0 0' }}>
                   {selectedSpill?.name || 'Select a spill to evaluate candidate vessels'}
@@ -404,7 +402,7 @@ export default function CoastGuardDashboard() {
                       boxShadow: isSelected ? '0 2px 8px rgba(74, 122, 181, 0.25)' : 'none'
                     }}
                   >
-                    <span>🛰️ {s.name}</span>
+                    <span>️ {s.name}</span>
                     <span className={`badge badge-${s.severity || 'high'}`} style={{ fontSize: '0.65rem', padding: '1px 6px' }}>
                       {(s.severity || 'high').toUpperCase()}
                     </span>
@@ -419,11 +417,11 @@ export default function CoastGuardDashboard() {
                 marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #1a2d4a',
                 display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '0.75rem', color: '#a8c8e8'
               }}>
-                <span>📍 Location: <strong>{(selectedSpill.centroid_lat || 18.85).toFixed(2)}°N, {(selectedSpill.centroid_lon || 71.90).toFixed(2)}°E</strong></span>
-                <span>🌊 Area: <strong>{(selectedSpill.area_sq_km || 12.5).toFixed(1)} km²</strong></span>
-                <span>🛡️ Region: <strong>{(selectedSpill.region || 'West Coast').replace(/_/g, ' ').toUpperCase()}</strong></span>
+                <span> Location: <strong>{(selectedSpill.centroid_lat || 18.85).toFixed(2)}°N, {(selectedSpill.centroid_lon || 71.90).toFixed(2)}°E</strong></span>
+                <span> Area: <strong>{(selectedSpill.area_sq_km || 12.5).toFixed(1)} km²</strong></span>
+                <span>️ Region: <strong>{(selectedSpill.region || 'West Coast').replace(/_/g, ' ').toUpperCase()}</strong></span>
                 <span>⏳ Age: <strong>{selectedSpill.age_estimate || 'fresh'}</strong></span>
-                <span>🔍 Status: <strong>{selectedSpill.validation_status || 'detected'}</strong></span>
+                <span> Status: <strong>{selectedSpill.validation_status || 'detected'}</strong></span>
               </div>
             )}
           </div>
@@ -449,7 +447,7 @@ export default function CoastGuardDashboard() {
           ) : suspects.length === 0 ? (
             <div className="card">
               <div className="card-body" style={{ textAlign: 'center', padding: '36px 20px', color: '#9ca3af' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🚢</div>
+                <div style={{ fontSize: '2rem', marginBottom: '8px' }}></div>
                 <h4 style={{ color: '#fff', marginBottom: '6px' }}>No Candidate Vessels Evaluated Yet</h4>
                 <p style={{ fontSize: '0.82rem', maxWidth: '500px', margin: '0 auto 16px', color: '#a8c8e8' }}>
                   No candidate vessels are currently cached for <strong>{selectedSpill?.name || 'this incident'}</strong>. Click below to execute the multi-factor AIS attribution engine against commercial traffic.
@@ -572,21 +570,21 @@ export default function CoastGuardDashboard() {
                         style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px' }}
                         onClick={() => setActiveSection('map')}
                       >
-                        🗺️ View on Tactical Map
+                        ️ View on Tactical Map
                       </button>
                       <button
                         className="btn btn-secondary btn-sm"
                         style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px' }}
                         onClick={() => setActiveSection('animation')}
                       >
-                        🎬 Launch AIS Replay
+                         Launch AIS Replay
                       </button>
                       <button
                         className="btn btn-secondary btn-sm"
                         style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px' }}
                         onClick={() => setActiveSection('anomalies')}
                       >
-                        🔔 Check Anomaly Feed
+                         Check Anomaly Feed
                       </button>
                     </div>
                   </div>
@@ -601,7 +599,7 @@ export default function CoastGuardDashboard() {
       {activeSection === 'anomalies' && (
         <>
           <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>
-            🔔 AIS Anomaly Alerts <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>({anomalies.length} unacknowledged)</span>
+             AIS Anomaly Alerts <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>({anomalies.length} unacknowledged)</span>
           </h3>
           <div className="anomaly-feed">
             {anomalies.length === 0 ? (
@@ -685,7 +683,7 @@ export default function CoastGuardDashboard() {
       {activeSection === 'drift' && (
         <>
           <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>
-            🌊 Drift Analysis — {selectedSpill?.name || 'Select a spill'}
+             Drift Analysis — {selectedSpill?.name || 'Select a spill'}
           </h3>
           <div className="grid-2">
             <div className="card">
@@ -698,7 +696,7 @@ export default function CoastGuardDashboard() {
                       Method: {driftData.backward.parameters?.method || 'euler_advection'}
                     </div>
                     <div className="disclaimer-banner" style={{ marginBottom: '12px' }}>
-                      <span>📍</span>
+                      <span></span>
                       <span>Origin shown as a <strong>probability cone</strong> — not a single confident point. Multiple origin locations are plausible.</span>
                     </div>
                     <ResponsiveContainer width="100%" height={200}>
@@ -750,10 +748,6 @@ export default function CoastGuardDashboard() {
         </>
       )}
 
-      {/* Real Data Upload Hub */}
-      {activeSection === 'upload' && (
-        <DataUploadSection onUploadSuccess={loadData} />
-      )}
     </DashboardLayout>
   );
 }
