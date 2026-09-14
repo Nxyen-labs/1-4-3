@@ -1,64 +1,64 @@
-# 🌊 SARVAS: Satellite SAR Oil Spill Detection & AIS Vessel Attribution Platform
+# SARVAS: Satellite SAR Oil Spill Detection and AIS Vessel Attribution Platform
 
-**SARVAS — From Slick to Suspect**
+**SARVAS -- From Slick to Suspect**
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![MapLibre](https://img.shields.io/badge/MapLibre_GL-5.1.0-blue?style=for-the-badge&logo=maplibre&logoColor=white)](https://maplibre.org/)
+[![MapLibre](https://img.shields.io/badge/MapLibre_GL-5.1.0-0078D7?style=for-the-badge&logo=maplibre&logoColor=white)](https://maplibre.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.2.0-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![PostGIS](https://img.shields.io/badge/PostGIS-3.4_/_PostgreSQL_16-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgis.net/)
 [![Vite](https://img.shields.io/badge/Vite-8.2-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
-> **SARVAS** (*Satellite Automated Reconnaissance & Vessel Attribution System*) is an end-to-end maritime intelligence platform combining Sentinel-1 SAR satellite computer vision, backward/forward hydrodynamic drift modeling, real-time AIS dark vessel tracking, sovereign EEZ territorial defense, NOS-DCP indicator species ecological risk matrices, and multi-tier command & control operational consoles.
+> **SARVAS** (*Satellite Automated Reconnaissance and Vessel Attribution System*) is an enterprise-grade maritime surveillance and forensic intelligence platform. It fuses Sentinel-1 Synthetic Aperture Radar (SAR) computer vision, Lagrangian hydrodynamic drift backtracking, real-time Automatic Identification System (AIS) telemetry anomaly tracking, Exclusive Economic Zone (EEZ) sovereign boundary protection, and National Oil Spill Disaster Contingency Plan (NOS-DCP) ecological vulnerability matrices into unified, role-governed command centers.
 
 ---
 
-## 📌 Executive Summary
+## 1. Executive Summary
 
-Illegal marine oil discharge (bilge dumping, tank washing, and catastrophic accidental spills) severely threatens coastal ecosystems, coral reefs, and fisheries. Traditional detection workflows suffer from high false-positive rates (algal blooms, low-wind sea slicks), lack of forensic backtracking, and inability to correlate detected slicks with culprit vessels.
+Unregulated maritime petroleum discharges--including illicit oily bilge flushing, crude tank washing, and catastrophic marine collisions--inflict severe ecological and financial destruction upon coastal shelf environments, mangrove networks, and protected fisheries. Conventional aerial and manual monitoring workflows are severely constrained by high false-alarm rates (biogenic slicks, calm water look-alikes), absence of physical backtracking physics, and the operational inability to correlate radar slicks with culprit vessels operating in stealth or transponder-denied environments.
 
-**SARVAS** bridges satellite Earth observation and maritime law enforcement into an automated, actionable surveillance pipeline:
+**SARVAS** establishes an autonomous, forensic pipeline bridging spaceborne Earth observation sensors and maritime law enforcement:
 
-1. **Detects & Segments** oil slicks from Synthetic Aperture Radar (SAR) imagery with deep learning U-Net models, discriminating true petroleum slicks from look-alikes.
-2. **Backtracks Drift Trajectories** using ocean current and surface wind vectors to determine the precise spatiotemporal point of discharge.
-3. **Identifies & Attributes Suspect Vessels** by ingesting live and historical AIS feeds, flagging dark ship anomalies (transponder blackouts, speed drops, sharp course deviations), and generating a ranked suspect score.
-4. **Evaluates Marine Ecological Impact** against high-resolution spatial layers of coral reefs, mangroves, Marine Protected Areas (MPAs), and Exclusive Economic Zone (EEZ) boundaries.
-5. **Interactive Sovereign Maritime GIS** with zero-collision labeling, regional raster tiles, and smooth zoom-out over sovereign waters and national port hubs.
-6. **Empowers Multi-Agency Operations** through tailored role-based dashboards (Coast Guard, Regional Supervisors, Higher Maritime Authorities, and Public Safety) alongside court-ready PDF legal dossiers.
+1. **Synthetic Aperture Radar Segmentation**: Deploys deep residual U-Net architectures trained on calibrated Sentinel-1 C-band SAR Level-1 Ground Range Detected (GRD) imagery to segment true mineral oil slicks while rejecting look-alikes.
+2. **Lagrangian Hydrodynamic Drift Reconstruction**: Executes backward temporal trajectories driven by CMEMS ocean surface currents and ECMWF ERA5 10-meter wind fields to determine spatiotemporal discharge origin coordinates.
+3. **AIS Vessel Attribution & Dark Anomaly Analysis**: Correlates candidate ship trajectories against discharge zones, auditing transponder blackouts, speed-drop signatures, and loitering maneuvers to compute auditable attribution scores.
+4. **Sovereign Maritime Domain Awareness & GIS**: Leverages high-precision sovereign baselines, 12-nautical-mile territorial limits, 200-nautical-mile EEZ perimeters, and zero-collision dynamic cartographic labeling over national sea lanes.
+5. **Ecosystem & NOS-DCP Sensitivity Evaluation**: Assesses spill vector proximities against UNEP-WCMC coral coordinates, Marine Protected Areas (MPAs), and classified bio-indicator species.
+6. **Multi-Tier Command Interoperability**: Furnishes distinct operational workspaces for tactical field interdictors, regional environmental coordinators, national oversight executives, and public coastal advisory portals.
 
 ---
 
-## 🏗️ System Architecture
+## 2. System Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Data_Sources["📡 Multi-Modal Ingestion"]
-        SAR["🛰️ Sentinel-1 SAR Imagery\n(GeoTIFF / PNG / Level-1 GRD)"]
-        AIS_LIVE["🚢 Live AIS WebSocket\n(aisstream.io Streamer)"]
-        AIS_HIST["📂 Historical AIS Archives\n(NOAA / Marine Cadastre CSVs)"]
-        MET["🌊 CMEMS Ocean Currents\n🌬️ ERA5 Surface Winds (CDS)"]
-        GIS["🗺️ GIS Protected Layers\n(UNEP-WCMC Corals & EEZ)"]
+    subgraph Data_Ingestion["Data Ingestion Layer"]
+        SAR["Sentinel-1 SAR Satellite Imagery\n(GeoTIFF / PNG / Level-1 GRD)"]
+        AIS_LIVE["Live AIS Telemetry Ingestion\n(AISStream WebSocket Engine)"]
+        AIS_HIST["Historical AIS Archive Processing\n(NOAA / Marine Cadastre Formats)"]
+        MET["CMEMS Ocean Circulation Data\nERA5 Surface Wind Vectors"]
+        GIS["Sovereign GIS Baseline Layers\n(Coastline / EEZ / UNEP-WCMC Corals)"]
     end
 
-    subgraph Backend_Engine["⚡ FastAPI Core & Analytics Engine"]
-        ML["🧠 U-Net SAR Vision Pipeline\nResNet Backbone • 3-Class Mask\nGeoJSON Contour Polygonizer"]
-        DRIFT["🔄 Hydrodynamic Drift Engine\n• Backward Backtracking (Spill Origin)\n• Forward Forecasting (Landfall Risk)"]
-        ANOMALY["🔍 Anomaly & Attribution Engine\n• AIS Dark Gap Detection\n• Loitering / Speed-Drop Analysis\n• Spatiotemporal Match Scoring"]
-        IMPACT["🌿 Ecological Impact Assessor\n• Distance-to-Shore • Coral Overlay\n• Time-to-Landfall Estimates"]
-        REPORTS["📄 Legal Dossier Generator\nWeasyPrint • Jinja2 PDF Engine"]
+    subgraph Analytics_Engine["FastAPI Core & Analytics Engine"]
+        ML["Deep Learning SAR Vision Pipeline\nResNet-Backbone U-Net\nAutomated GeoJSON Contour Vectorizer"]
+        DRIFT["Lagrangian Drift Physics Engine\n- Backward Origin Attribution (24h)\n- Forward Dispersion Forecasting (48h)"]
+        ANOMALY["Vessel Attribution Engine\n- Dark Gap Spatiotemporal Auditing\n- Speed-Drop & Loitering Forensics\n- Multi-Factor Suspect Scoring"]
+        IMPACT["Ecological Vulnerability Assessor\n- Distance-to-Shore Tracking\n- Protected Flora & Fauna Threat Matrix"]
+        REPORTS["Forensic Dossier Generator\nJinja2 / WeasyPrint Legal Export"]
     end
 
-    subgraph Storage_Layer["💾 Persistence & Cache Layer"]
-        DB[("🐘 PostGIS 16 / PostgreSQL\n(w/ Safe SQLite3 Auto-Fallback)")]
-        REDIS[("⚡ Redis 7 Cache\nTask Queue & Tile Cache")]
+    subgraph Storage_Infrastructure["Persistence & Caching Infrastructure"]
+        DB[("PostgreSQL 16 with PostGIS 3.4\n(Resilient SQLite3 Auto-Fallback)")]
+        REDIS[("Redis 7 In-Memory Cache\nOperational Queue & Session Store")]
     end
 
-    subgraph Frontend_App["🖥️ High-Performance UI (React 19 + Deck.gl)"]
-        CG["🛡️ Coast Guard Tactical Center\n(Live Intercept, Validation, Drone Dispatch)"]
-        RM["📊 Regional Manager View\n(Resource Allocation & Zonal Monitoring)"]
-        HA["⚖️ Higher Authority Oversight\n(Legal Dossiers & National Analytics)"]
-        PUB["🌐 Public Awareness Portal\n(Coastal Alerts & Transparency)"]
+    subgraph Command_Consoles["Unified Web Operational Consoles (React 19 + Deck.gl + MapLibre)"]
+        CG["Coast Guard Tactical Console\n(Incident Interception, Validation, Fleet Dispatch)"]
+        RM["Regional Environmental Center\n(Resource Allocation, Zonal Vulnerability Monitoring)"]
+        HA["National Maritime Command\n(Audit Oversight, Legal Dossiers, Inter-Agency Reporting)"]
+        PUB["Public Coastal Advisory Portal\n(Citizen Awareness, Transparency, Status Feeds)"]
     end
 
     SAR --> ML
@@ -67,196 +67,190 @@ flowchart TB
     GIS --> IMPACT
 
     ML & DRIFT & ANOMALY & IMPACT --> DB
-    DB <--> Backend_Engine
-    REDIS <--> Backend_Engine
+    DB <--> Analytics_Engine
+    REDIS <--> Analytics_Engine
 
-    Backend_Engine -->|REST API & JWT| Frontend_App
-    Backend_Engine -->|PDF Generation| REPORTS
+    Analytics_Engine -->|REST API & JWT Security| Command_Consoles
+    Analytics_Engine -->|Automated Dossier Generation| REPORTS
 ```
 
 ---
 
-## 🔑 Pre-Configured Demo Accounts
+## 3. Role-Based Access Control (RBAC) Specifications
 
-The platform includes 4 pre-configured role-based accounts ready for testing:
+SARVAS enforces strict role segregation across four operational command tiers:
 
-| Role | Username | Password | Default Dashboard | Key Capabilities |
+| Operational Role | Identifier | Password | Designated Route | Core Responsibilities |
 | :--- | :--- | :--- | :--- | :--- |
-| **Coast Guard Officer** | `coast_guard` | `demo123` | `/dashboard/coastguard` | Real-time tactical map, slick validation/override, suspect vessel inspection, live AIS tracks, drone dispatch |
-| **Regional Manager** | `regional_mgr` | `demo123` | `/dashboard/regional` | Coastal surveillance, containment monitoring, clean-up resource distribution |
-| **Higher Authority** | `authority` | `demo123` | `/dashboard/authority` | Executive national overview, multi-state risk breakdown, court-admissible PDF dossier export |
-| **Public Observer** | `public_user` | `demo123` | `/` | Open citizen alerts, safety advisories, verified spill records |
+| **Tactical Interceptor (Coast Guard)** | `coast_guard` | `demo123` | `/dashboard/coastguard` | Real-time tactical radar plot, slick verification, AIS dark track scrutiny, patrol vessel dispatch, and drone reconnaissance. |
+| **Regional Environmental Director** | `regional_mgr` | `demo123` | `/dashboard/regional` | Coastline containment coordination, booms and skimmer deployment, regional shoreline defense, and clean-up logistics. |
+| **National Maritime Executive** | `authority` | `demo123` | `/dashboard/authority` | Comprehensive jurisdictional oversight, multi-state risk assessments, inter-agency reporting, and court-ready PDF dossier approvals. |
+| **Public Information Officer / Citizen** | `public_user` | `demo123` | `/` | Transparency portal, public coastal safety advisories, verified cleanup statuses, and citizen observation logs. |
 
 ---
 
-## ⚡ Quickstart Guide
+## 4. Installation and Deployment
 
-### Option 1: One-Click Launch with Docker Compose (Recommended)
+### Option A: Automated Containerized Deployment (Docker Compose)
 
-Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/):
+Prerequisites: Docker Engine 24.0+ and Docker Compose v2.
 
 ```bash
 # 1. Clone the repository
-git clone <your-repo-url>
-cd <repo-folder>
+git clone https://github.com/VaishnaviPatil-gif/Sarvas.git
+cd Sarvas
 
-# 2. Build and launch all containers (PostGIS, Redis, FastAPI Backend, React Frontend)
+# 2. Build and launch infrastructure services
 docker compose up --build -d
 
-# 3. Seed initial database (creates all tables, accounts, spills, vessels, tracks)
+# 3. Seed demo fixtures, vessels, spatial layers, and user credentials
 docker compose exec backend python -m scripts.seed_demo_data
 ```
 
-Access the applications:
-- 🌐 **Frontend Web App**: [http://localhost:5173](http://localhost:5173)
-- ⚡ **Backend API & Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- 🐘 **PostGIS Database**: `localhost:5432` (`oilspill` / `oilspill_dev`)
+Active Endpoints:
+- Web Application Console: `http://localhost:5173`
+- Backend REST API & OpenAPI Documentation: `http://localhost:8000/docs`
+- PostGIS Spatial Database: `localhost:5432` (`oilspill` / `oilspill_dev`)
 
 ---
 
-### Option 2: Local Bare-Metal Setup (Zero Docker Needed)
+### Option B: Local Bare-Metal Setup
 
-The platform features an **automatic SQLite fallback**. If PostgreSQL is not running on your machine, the backend will automatically initialize a local SQLite database (`oilspill.db`)!
+The platform includes an automated SQLite persistence fallback. If PostgreSQL/PostGIS is absent, the backend safely routes operations to a local file-based database (`oilspill.db`).
 
-#### 1. Backend Setup
+#### 1. Backend Service Configuration
 
 ```bash
 cd backend
 
-# Create and activate virtual environment
+# Initialize and activate Python virtual environment
 python -m venv venv
-# Windows:
+# On Windows (PowerShell / Command Prompt):
 .\venv\Scripts\activate
-# Linux/macOS:
+# On Linux / macOS:
 source venv/bin/activate
 
-# Install dependencies
+# Install core dependencies
 pip install -r requirements.txt
 
-# Create local environment config
-cp .env.example .env
+# Provision environment configuration
+copy .env.example .env
 
-# Seed initial database (creates users, demo spills, vessels, and anomalies in 1 second)
+# Run database migrations and seed operational baseline data
 python -m scripts.seed_demo_data
 
-# Start the FastAPI development server
+# Launch FastAPI development server
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-#### 2. Frontend Setup
+#### 2. Frontend Application Setup
 
-Open a new terminal window:
+In a separate terminal window:
 
 ```bash
 cd frontend
 
-# Install Node dependencies
+# Install Node.js package dependencies
 npm install
 
-# Start Vite development server
+# Start Vite compilation server
 npm run dev
 ```
 
-Visit [http://localhost:5173](http://localhost:5173) in your browser.
+Navigate to `http://localhost:5173` in any modern web browser.
 
 ---
 
-## 💾 How Database Data is Handled
+## 5. Persistence Architecture and Data Management
 
-To prevent Git merge conflicts and keep development frictionless for all teammates:
+To ensure deterministic deployment, high developer velocity, and zero repository bloating:
 
-1. **Why `*.db` is excluded from Git**:
-   Binary SQLite files (`oilspill.db`) change on every user login, spill update, or session creation. Committing binary database files causes frequent Git conflicts and bloat.
-2. **Instant 1-Second Database Seeding**:
-   The `backend/scripts/seed_demo_data.py` script is fully idempotent and self-contained. Running:
+1. **Database Decoupling**: Binary SQLite and database instance states (`*.db`) are excluded from source control. All database structures are provisioned dynamically upon startup.
+2. **Idempotent Seeding Pipeline**: The script `backend/scripts/seed_demo_data.py` can be executed repeatedly without generating duplicate state:
    ```bash
    python -m scripts.seed_demo_data
    ```
-   automatically:
-   - Creates all database tables (compatible with both PostgreSQL/PostGIS and SQLite).
-   - Hashes passwords and creates the 4 test users (`coast_guard`, `regional_mgr`, `authority`, `public_user`).
-   - Inserts realistic detected oil spills (Mumbai Offshore, Gulf of Kutch, etc.) with coordinates, contours, and severity.
-   - Populates commercial tankers, cargo vessels, AIS coordinate tracks, speed drop anomalies, and dark transponder blackout gaps.
-   - Computes drift trajectories and coral reef vulnerability scores.
+   Execution automatically:
+   - Provisions database schemas compatible across PostgreSQL/PostGIS and SQLite.
+   - Hashes credentials with bcrypt and assigns role records.
+   - Ingests synthetic and real-world radar detections (Mumbai Offshore, Gulf of Kutch, Palk Strait) with vector boundary polygons.
+   - Populates commercial vessel profiles, trajectory coordinates, transponder interruption gaps, and course deviations.
+   - Pre-computes forward/backward dispersion curves and sensitivity indices.
 
 ---
 
-## 📦 Out-of-the-Box Data (Included in Repository)
+## 6. Embedded Geospatial and Machine Learning Assets
 
-The repository comes pre-packaged with all lightweight runtime assets (~73 MB total) so teammates can run the entire platform immediately with zero external downloads:
+The platform repository includes self-contained geospatial vector assets and pre-trained neural network weights (~73 MB total):
 
-| Asset | Location | Size | Description |
+| Component | Storage Path | Size | Description |
 | :--- | :--- | :--- | :--- |
-| **India EEZ Layer** | `backend/data/gis/eez/india_eez.geojson` | 551 KB | Official Exclusive Economic Zone boundary for maritime jurisdiction |
-| **India Coastline** | `backend/data/gis/coastline/india_coastline.geojson` | 786 KB | Coastal vectors for distance-to-shore and landfall calculations |
-| **Coral Reef Systems** | `backend/data/gis/corals/coral_reefs.geojson` | 12.3 MB | UNEP-WCMC coral reef boundary polygons |
-| **ERA5 Wind Field** | `backend/data/era5/era5_wind_india.nc` | 584 KB | Surface wind vectors for drift particle simulation |
-| **U-Net Model Weights** | `backend/ml/models/unet_best.pth` | 54.7 MB | Pre-trained PyTorch U-Net neural network for SAR oil slick segmentation |
-| **Judge Demo SAR Test Suite** | `backend/data/sar/demo_for_judges/` | ~3.5 MB | 6 real Sentinel-1 test scenes (major spills, moderate slicks, low-wind look-alikes) with ground-truth masks |
-
-*For complete details on data sources, see [DATA_GUIDE.md](DATA_GUIDE.md).*
+| **Sovereign EEZ Boundaries** | `backend/data/gis/eez/india_eez.geojson` | 551 KB | Complete 200-nautical-mile Exclusive Economic Zone delineation. |
+| **Sovereign Coastline Matrix** | `backend/data/gis/coastline/india_coastline.geojson` | 786 KB | High-resolution coastal vectors for distance-to-shore analytics. |
+| **Coral Reef Systems** | `backend/data/gis/corals/coral_reefs.geojson` | 12.3 MB | UNEP-WCMC global protected reef vector polygons. |
+| **ERA5 Atmospheric Wind Field** | `backend/data/era5/era5_wind_india.nc` | 584 KB | NetCDF surface wind field for Lagrangian drift advection. |
+| **U-Net Deep Vision Model** | `backend/ml/models/unet_best.pth` | 54.7 MB | PyTorch neural network checkpoint for multi-class SAR oil segmentation. |
+| **Evaluation Test Scenes** | `backend/data/sar/demo_for_judges/` | ~3.5 MB | Curated Sentinel-1 SAR scenes featuring verified oil spills and look-alikes. |
 
 ---
 
-## 🛰️ Live Telemetry & Real-World Operations
+## 7. Real-World Live Telemetry Ingestion
 
-### Streaming Live AIS Vessel Feeds
-Stream real-time vessel traffic directly into the database from [aisstream.io](https://aisstream.io):
+### Live AIS Data Streaming
+Stream live commercial vessel telemetry directly into the analytical store via AISStream:
 ```bash
-# 1. Add your free key in backend/.env:
-# AISSTREAM_API_KEY=your_key_here
+# Set your API token inside backend/.env:
+# AISSTREAM_API_KEY=your_registered_token
 
-# 2. Run the live streamer:
+# Initiate the continuous streaming worker:
 python -m scripts.stream_ais --region west_coast
 ```
 
-### Uploading & Segmenting SAR Imagery
-Upload any Sentinel-1 SAR image (PNG, JPG, TIFF) via the web dashboard or CLI:
+### Manual SAR Scene Processing
+Process and segment custom radar acquisitions from command line or web interface:
 ```bash
 python -m scripts.ingest_real_data --sar "data/sar/demo_for_judges/demo_oil_spill_large.png" --lat 18.85 --lon 71.90 --region "west_coast"
 ```
 
 ---
 
-## 🔌 API Reference Overview
+## 8. REST API Specification
 
-Interactive Swagger documentation is available at [http://localhost:8000/docs](http://localhost:8000/docs).
+Detailed OpenAPI 3.0 documentation is accessible at `http://localhost:8000/docs`.
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | Authenticate user & receive Bearer JWT token |
-| `GET` | `/api/auth/me` | Fetch authenticated user profile and assigned role |
-| `GET` | `/api/spills` | List detected oil spills with filtering (status, severity, region) |
-| `POST` | `/api/spills/upload-sar` | Upload SAR image for automatic ML segmentation & polygonization |
-| `POST` | `/api/spills/{id}/validate` | Validate or reject detected slick (Coast Guard role) |
-| `GET` | `/api/vessels/{id}/tracks` | Retrieve temporal AIS coordinate history for a vessel |
-| `GET` | `/api/drift/{id}/backward` | Retrieve 24h backtrack origin trajectory |
-| `GET` | `/api/drift/{id}/forward` | Retrieve 48h forecasted dispersion & landfall path |
-| `GET` | `/api/attribution/{id}/suspects` | Retrieve ranked suspect vessels with attribution scores |
-| `GET` | `/api/attribution/anomalies/feed` | Real-time stream of detected vessel anomalies (dark gaps, speed drops) |
-| `GET` | `/api/impact/{id}/assessment` | Ecological risk evaluation (coral reefs, coastline proximity) |
-| `GET` | `/api/reports/{id}/pdf` | Generate and download official PDF investigation dossier |
+| HTTP Verb | Resource Path | Description | Access Scope |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/login` | Authenticate credentials and generate JWT token. | Public |
+| `GET` | `/api/auth/me` | Retrieve profile and assigned role permissions. | Authenticated |
+| `GET` | `/api/spills` | Query oil spill incidents filtered by status, region, or risk. | Authenticated |
+| `POST` | `/api/spills/upload-sar` | Ingest SAR raster for automated neural network segmentation. | Operator / Interceptor |
+| `POST` | `/api/spills/{id}/validate` | Submit formal verification or rejection of an automated detection. | Coast Guard |
+| `GET` | `/api/vessels/{id}/tracks` | Query historical AIS spatiotemporal trajectory vectors. | Authenticated |
+| `GET` | `/api/drift/{id}/backward` | Retrieve 24-hour backward hydrodynamic drift trajectory. | Authenticated |
+| `GET` | `/api/drift/{id}/forward` | Retrieve 48-hour forward dispersion forecast and landfall risk. | Authenticated |
+| `GET` | `/api/attribution/{id}/suspects`| Return ranked candidate vessels with forensic confidence scores. | Authenticated |
+| `GET` | `/api/attribution/anomalies/feed` | Stream real-time detected AIS transponder gaps and speed drops. | Authenticated |
+| `GET` | `/api/impact/{id}/assessment` | Compute spatial vulnerability against coastline and coral layers. | Authenticated |
+| `GET` | `/api/reports/{id}/pdf` | Generate cryptographic, court-admissible PDF investigation dossier. | Authority / Executive |
 
 ---
 
-## 🤝 Git Push & Team Workflow
+## 9. Code Quality and Testing Standards
 
-To push this repository to GitHub/GitLab, see [GIT_PUSH_INSTRUCTIONS.md](GIT_PUSH_INSTRUCTIONS.md).
+Ensure system integrity by running the test suite prior to deployment:
 
 ```bash
-# 1. Initialize & stage
-git init
-git branch -M main
-git add .
-git commit -m "feat: initial commit of AegisOcean platform"
+# Run backend unit, integration, and ML inference tests
+cd backend
+pytest tests/ -v
 
-# 2. Add remote & push
-git remote add origin https://github.com/<username>/<repo>.git
-git push -u origin main
+# Run frontend production bundle validation
+cd ../frontend
+npm run build
 ```
 
 ---
 
-## 🛡️ License
+## 10. License and Governance
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License**. Refer to the [LICENSE](LICENSE) file for complete terms and governance.
