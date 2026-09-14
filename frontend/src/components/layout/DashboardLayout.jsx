@@ -24,9 +24,18 @@ export default function DashboardLayout({ children, title, navItems = [] }) {
     <div className="app-layout">
       {/* Sidebar */}
       <aside className="sidebar">
-        <div className="sidebar-header">
-          <h1>🛢️ OSDS</h1>
-          <div className="subtitle">Oil Spill Detection System</div>
+        <div className="sidebar-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img
+              src="/sarvas_logo.png"
+              alt="SARVAS Logo"
+              style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(56, 189, 248, 0.4)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }}
+            />
+            <div>
+              <h1 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, letterSpacing: '0.8px', color: '#fff' }}>SARVAS</h1>
+              <div className="subtitle" style={{ fontSize: '0.68rem', color: '#7dd3fc', letterSpacing: '0.5px' }}>From Slick to Suspect</div>
+            </div>
+          </div>
         </div>
 
         <nav className="sidebar-nav">
@@ -47,8 +56,12 @@ export default function DashboardLayout({ children, title, navItems = [] }) {
 
           <div style={{ borderTop: '1px solid #1a2d4a', margin: '12px 0' }} />
 
-          <a href="/" style={{ color: '#a8c8e8' }}>
-            <span>🌍</span>
+          <a href="/" style={{ color: '#a8c8e8', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
             <span>Public Dashboard</span>
           </a>
         </nav>
@@ -78,7 +91,7 @@ export default function DashboardLayout({ children, title, navItems = [] }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {user?.assigned_region && (
               <span className="badge badge-detected" style={{ fontSize: '0.6875rem' }}>
-                📍 {user.assigned_region.replace(/_/g, ' ')}
+                Region: {user.assigned_region.replace(/_/g, ' ')}
               </span>
             )}
             <span style={{ fontSize: '0.6875rem', color: '#9ca3af' }}>
