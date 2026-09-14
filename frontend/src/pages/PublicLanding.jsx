@@ -1,12 +1,168 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { publicAPI } from '../api/client';
-import {
-  INDIA_MAINLAND_POLYGON,
-  SRI_LANKA_COASTLINE,
-  INDIAN_PORTS,
-  MARINE_SANCTUARIES
-} from '../components/map/indiaMapData';
+import RealIndiaMap from '../components/map/RealIndiaMap';
+import './PublicLanding.css';
+
+/* ── SVG Icon Components (replacing emojis) ── */
+
+const SatelliteIcon = ({ size = 20, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M13 7L9 3L5 7l4 4" /><path d="M17 11l4 4-4 4-4-4" />
+    <path d="m8 12 4 4" /><path d="m12 8 4 4" />
+    <path d="M2 22c3-3 4.5-6 4.5-9s-1.5-6-4.5-9" /><path d="M7 17c1.5-1.5 2.5-3.5 2.5-5.5S8.5 8 7 6.5" />
+  </svg>
+);
+
+const RadarIcon = ({ size = 20, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19.07 4.93A10 10 0 0 0 6.99 3.34" /><path d="M4 6h.01" />
+    <path d="M2.29 9.62A10 10 0 1 0 21.31 8.35" /><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67" />
+    <path d="M12 18h.01" /><circle cx="12" cy="12" r="2" />
+    <path d="m13.41 10.59 5.66-5.66" />
+  </svg>
+);
+
+const ShieldIcon = ({ size = 20, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+);
+
+const WavesIcon = ({ size = 20, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+    <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+    <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+  </svg>
+);
+
+const AlertTriangleIcon = ({ size = 20, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+const CoralIcon = ({ size = 28 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round">
+    <path d="M12 22V12" /><path d="M12 12c-2-3-6-4-6-8a6 6 0 0 1 12 0c0 4-4 5-6 8z" />
+    <path d="M7 14c-1-1-3-1.5-3-4" /><path d="M17 14c1-1 3-1.5 3-4" />
+  </svg>
+);
+
+const TurtleIcon = ({ size = 28 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round">
+    <ellipse cx="12" cy="13" rx="7" ry="5" /><path d="M12 8V5" /><circle cx="12" cy="4" r="1.5" />
+    <path d="M5 13l-2 3" /><path d="M19 13l2 3" /><path d="M7 17l-1 3" /><path d="M17 17l1 3" />
+    <path d="M9 11v4" /><path d="M15 11v4" /><path d="M12 10v6" />
+  </svg>
+);
+
+const MangroveIcon = ({ size = 28 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="1.8" strokeLinecap="round">
+    <path d="M12 22v-8" /><path d="M12 14c-3-2-5-5-3-9 0 0 3 2 3 5" /><path d="M12 14c3-2 5-5 3-9 0 0-3 2-3 5" />
+    <path d="M8 22c0-2 1-3 2-4" /><path d="M16 22c0-2-1-3-2-4" />
+  </svg>
+);
+
+const FishIcon = ({ size = 28 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.8" strokeLinecap="round">
+    <path d="M6.5 12c5-6 12-2.5 14.5 0-2.5 2.5-9.5 6-14.5 0z" />
+    <path d="M2.5 12S4 8 6.5 12 4 16 2.5 12" /><circle cx="15" cy="12" r="1" fill="#3b82f6" />
+  </svg>
+);
+
+const PhoneIcon = ({ size = 16, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+  </svg>
+);
+
+const BirdIcon = ({ size = 24, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 7h.01" /><path d="M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.28-2.3L2 20" />
+    <path d="m20 7 2 .5-2 .5" /><path d="M10 18v3" /><path d="M14 17.75V21" /><path d="M7 18a6 6 0 0 0 3.84-10.61" />
+  </svg>
+);
+
+const EyeIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const MapPinIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+  </svg>
+);
+
+const CheckCircleIcon = ({ size = 20, color = '#2980b9' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
+
+const DolphinIcon = ({ size = 24, color = '#0284c7' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 13c3-5 9-7 14-4 2 1.2 3.5 3 4 5-1.5-.5-3.5-.5-5 0-2-3-6-4-9-2l-4 1z" />
+    <path d="M12 9c.5-2 2-3.5 3.5-4" />
+    <path d="M4 14l-2 3 3-1" />
+  </svg>
+);
+
+const JellyfishIcon = ({ size = 24, color = '#7c3aed' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 11a6 6 0 0 1 12 0c0 1.5-.5 2-6 2s-6-.5-6-2z" />
+    <path d="M8 13v6c0 1-.5 2-1 2" />
+    <path d="M11 13v7c0 .5.5 1 1 1s1-.5 1-1v-7" />
+    <path d="M16 13v6c0 1 .5 2 1 2" />
+  </svg>
+);
+
+const OctopusIcon = ({ size = 24, color = '#ea580c' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="9" r="5" />
+    <path d="M8 13c-2 2-2 5 0 6 1 .5 2 0 2-2v-4" />
+    <path d="M11 14v4c0 1.5 1 2 2 1s1-2 0-3" />
+    <path d="M16 13c2 2 2 5 0 6-1 .5-2 0-2-2v-4" />
+    <circle cx="10" cy="8.5" r="0.75" fill={color} />
+    <circle cx="14" cy="8.5" r="0.75" fill={color} />
+  </svg>
+);
+
+const StarfishIcon = ({ size = 24, color = '#059669' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+  </svg>
+);
+
+const IndiaFlagIcon = () => (
+  <svg width="18" height="12" viewBox="0 0 900 600" style={{ borderRadius: 2, display: 'inline-block', verticalAlign: 'middle', boxShadow: '0 1px 2px rgba(0,0,0,0.25)' }}>
+    <rect width="900" height="200" fill="#FF9933" />
+    <rect y="200" width="900" height="200" fill="#FFFFFF" />
+    <rect y="400" width="900" height="200" fill="#138808" />
+    <circle cx="450" cy="300" r="70" fill="none" stroke="#000080" strokeWidth="18" />
+  </svg>
+);
+
+
+/* ── Eco tab icon map ── */
+const ecoTabIcons = {
+  coral: { icon: <CoralIcon />, bg: 'rgba(249, 115, 22, 0.1)' },
+  turtles: { icon: <TurtleIcon />, bg: 'rgba(16, 185, 129, 0.1)' },
+  mangroves: { icon: <MangroveIcon />, bg: 'rgba(34, 197, 94, 0.1)' },
+  fisherfolk: { icon: <FishIcon />, bg: 'rgba(59, 130, 246, 0.1)' },
+};
+
+const ecoTabLabels = {
+  coral: 'Coral Reef Sanctuaries',
+  turtles: 'Sea Turtles & Marine Fauna',
+  mangroves: 'Mangroves & Blue Carbon',
+  fisherfolk: 'Fisherfolk Communities',
+};
+
 
 export default function PublicLanding() {
   const [stats, setStats] = useState(null);
@@ -14,6 +170,8 @@ export default function PublicLanding() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [activeTab, setActiveTab] = useState('coral');
+  const [activeSatelliteTarget, setActiveSatelliteTarget] = useState(0);
+  const [sarViewMode, setSarViewMode] = useState('overlay');
   const [pledgeSigned, setPledgeSigned] = useState(false);
   const [pledgeCount, setPledgeCount] = useState(12480);
   const [openFaq, setOpenFaq] = useState(null);
@@ -23,11 +181,147 @@ export default function PublicLanding() {
     wildlife: true
   });
 
-  // Large Nautical Map interactive state
-  const [mapZoom, setMapZoom] = useState(1);
-  const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
-  const [isMapDragging, setIsMapDragging] = useState(false);
-  const [mapDragStart, setMapDragStart] = useState({ x: 0, y: 0 });
+  // Marine biodiversity sanctuary interactive explorer state
+  const [speciesFilter, setSpeciesFilter] = useState('all');
+  const [activeSpeciesId, setActiveSpeciesId] = useState('dolphin');
+  const [speciesViewMode, setSpeciesViewMode] = useState('console'); // 'console' | 'table'
+
+  const marineSpeciesList = [
+    {
+      id: 'dolphin',
+      num: 1,
+      indexNum: '01',
+      code: 'BIO-01',
+      category: 'mammal',
+      commonName: 'Indo-Pacific Bottlenose Dolphin',
+      scientificName: 'Tursiops aduncus',
+      taxonomicClass: 'Mammalia • Cetacea',
+      trophicRole: 'Apex Pelagic Predator',
+      sensitivity: 'Critical Exposure Tier-1',
+      status: 'Schedule I Protected',
+      statusColor: '#334155',
+      statusBg: '#f1f5f9',
+      habitat: 'Gulf of Mannar & Malabar Coast',
+      threatVector: 'Inhalation of Volatile Aromatic BTEX Vapors',
+      threatTags: ['Blowhole Mucosal Burns', 'Acute Pulmonary Edema', 'Acoustic Disorientation'],
+      threat: 'Surface respiration pulls toxic volatile aromatic hydrocarbons (BTEX vapors) into blowhole lungs; causes acute pulmonary edema, chemical burns, and acoustic disorientation.',
+      safeguardRule: 'NOS-DCP Cetacean Bio-Exclusion Annex 4',
+      safeguardTags: ['Acoustic Bubble Curtains', 'Bio-Acoustic Hazing', 'Zero-Dispersant Radius'],
+      safeguard: 'Deployment of specialized acoustic bubble curtains and marine acoustic hazing protocols to deter cetacean pods from active slick containment sectors.'
+    },
+    {
+      id: 'turtle',
+      num: 2,
+      indexNum: '02',
+      code: 'BIO-02',
+      category: 'mammal',
+      commonName: 'Olive Ridley & Hawksbill Sea Turtle',
+      scientificName: 'Lepidochelys olivacea',
+      taxonomicClass: 'Reptilia • Testudines',
+      trophicRole: 'Pelagic & Benthic Feeder',
+      sensitivity: 'Severe Ingestion & Rookery Hazard',
+      status: 'Vulnerable (IUCN)',
+      statusColor: '#334155',
+      statusBg: '#f1f5f9',
+      habitat: 'Rushikulya & Gahirmatha Arribada Rookeries',
+      threatVector: 'Tarball Ingestion & Nesting Beach Oil Smothering',
+      threatTags: ['Asphaltic Tarball Ingestion', 'Nesting Sand Toxicity', 'Hatchling Surf Trap'],
+      threat: 'Ingests floating asphaltic tarballs mistaking them for jellyfish prey; hatchlings crawl through heavy coastal oil slicks along nesting beaches.',
+      safeguardRule: 'NOS-DCP Arribada Protection Mandate 7.2',
+      safeguardTags: ['12 nm Chemical Exclusion', 'Shoreline Deflection Booms', 'Night Arribada Patrols'],
+      safeguard: 'Zero chemical dispersant spraying within 12 nm of arribada rookeries; priority deflection containment booms along shoreline arrival corridors.'
+    },
+    {
+      id: 'coral',
+      num: 3,
+      indexNum: '03',
+      code: 'BIO-03',
+      category: 'reef',
+      commonName: 'Branching Staghorn & Brain Coral',
+      scientificName: 'Acropora formosa & Diploria',
+      taxonomicClass: 'Anthozoa • Scleractinia',
+      trophicRole: 'Primary Biogenic Reef Architect',
+      sensitivity: 'Irreversible Bleaching & Colony Smothering',
+      status: 'Critically Vulnerable',
+      statusColor: '#334155',
+      statusBg: '#f1f5f9',
+      habitat: 'Palk Bay, Gulf of Kutch & Lakshadweep Atolls',
+      threatVector: 'Polyp Smothering & Photosynthetic Light Blockade',
+      threatTags: ['Zooxanthellae Bleaching', 'Surface Light Blockade', 'Tissue Necrosis'],
+      threat: 'Sinking weathered crude covers living polyps, cutting off photosynthetic light to symbiotic zooxanthellae algae and triggering irreversible colony bleaching.',
+      safeguardRule: 'NOS-DCP Zero-Dispersant Sensitivity Zone',
+      safeguardTags: ['5m Seaward Deflection Barriers', 'Zero Chemical Dispersants', 'Autonomous Fluorometry'],
+      safeguard: 'Priority deflection barriers anchored seaward of the 5-meter depth contour to prevent emulsified mousse from contacting shallow reef crests.'
+    },
+    {
+      id: 'jellyfish',
+      num: 4,
+      indexNum: '04',
+      code: 'BIO-04',
+      category: 'reef',
+      commonName: 'Bioluminescent Moon Jellyfish',
+      scientificName: 'Pelagia noctiluca',
+      taxonomicClass: 'Scyphozoa • Semaeostomeae',
+      trophicRole: 'Pelagic Trophic Vector',
+      sensitivity: 'Trophic Bioaccumulation Vector',
+      status: 'Pelagic Trophic Indicator',
+      statusColor: '#334155',
+      statusBg: '#f1f5f9',
+      habitat: 'Andaman Basin & Pelagic Currents',
+      threatVector: 'Micro-Droplet Absorption & Food-Web Biomagnification',
+      threatTags: ['PAH Tissue Absorption', 'Planktonic Mortality', 'Bio-Magnification'],
+      threat: 'Absorbs microscopic dispersed oil droplets into gelatinous bell tissue, bioaccumulating polycyclic aromatic hydrocarbons across the pelagic marine food web.',
+      safeguardRule: 'INCOIS Autonomous Sub-Surface Surveillance',
+      safeguardTags: ['Autonomous Slocum Gliders', 'Fluorometric Plume Profiling', 'Dispersant Restriction'],
+      safeguard: 'Real-time water column fluorometric monitoring by autonomous INCOIS gliders to track sub-surface dissolved hydrocarbon plumes.'
+    },
+    {
+      id: 'octopus',
+      num: 5,
+      indexNum: '05',
+      code: 'BIO-05',
+      category: 'benthic',
+      commonName: 'Day Octopus & Reef Cephalopods',
+      scientificName: 'Octopus cyanea',
+      taxonomicClass: 'Cephalopoda • Octopoda',
+      trophicRole: 'Intelligent Benthic Predator',
+      sensitivity: 'Chemosensory & Camouflage Disruption',
+      status: 'Protected Benthic Mollusc',
+      statusColor: '#334155',
+      statusBg: '#f1f5f9',
+      habitat: 'Shallow Coral Cavities & Rocky Inshore',
+      threatVector: 'Suction Pad Chemosensory Receptor Toxicity',
+      threatTags: ['Chemosensory Blinding', 'Chromatophore Paralysis', 'Sedimentation Shock'],
+      threat: 'Chemosensory receptor cells on suction tentacle pads are chemically blinded by petroleum residues, impairing predation and skin camouflage chromatophores.',
+      safeguardRule: 'NOS-DCP Benthic Sediment Quality Standard',
+      safeguardTags: ['Benthic Core Sampling', 'Dissolved Oxygen Profiling', 'Zero Heavy Sinking Agents'],
+      safeguard: 'Continuous benthic dissolved oxygen profiling and sediment core sampling to ensure zero heavy hydrocarbon sedimentation on the sea floor.'
+    },
+    {
+      id: 'starfish',
+      num: 6,
+      indexNum: '06',
+      code: 'BIO-06',
+      category: 'benthic',
+      commonName: 'Blue Sea Star & Coastal Hermit Crab',
+      scientificName: 'Linckia laevigata & Coenobita',
+      taxonomicClass: 'Asteroidea • Valvatida',
+      trophicRole: 'Keystone Intertidal Grazer',
+      sensitivity: 'Intertidal Substrate Smothering',
+      status: 'Benthic Keystone Grazer',
+      statusColor: '#334155',
+      statusBg: '#f1f5f9',
+      habitat: 'Intertidal Sand Flats & Pebble Basins',
+      threatVector: 'Dense Tar-Mat Formation on Intertidal Flats',
+      threatTags: ['Tube-Feet Suffocation', 'Micro-Algae Eradication', 'Tar-Mat Binding'],
+      threat: 'Heavy asphaltic fractions bind with seafloor sediments and pebble flats, forming dense tar-mats that suffocate tube feet and eradicate micro-algae.',
+      safeguardRule: 'NOS-DCP Shoreline Cleanup Protocol SOP-3',
+      safeguardTags: ['Low-Pressure Ambient Flush', 'Manual Sorbent Recovery', 'Substrate Preservation'],
+      safeguard: 'Low-pressure ambient temperature seawater flushing combined with manual collection along intertidal zones to preserve delicate bottom substrates.'
+    }
+  ];
+
+  // Maritime GIS surveillance layer visibility state
   const [mapLayers, setMapLayers] = useState({
     slicks: true,
     currents: true,
@@ -36,42 +330,13 @@ export default function PublicLanding() {
     sanctuaries: true
   });
 
-  // Geographic projection: 66E - 92E, 6N - 26N to 960x620 Viewport
-  const projectMap = (lon, lat) => {
-    const x = ((lon - 66.0) / (92.0 - 66.0)) * 960;
-    const y = 620 - ((lat - 6.0) / (26.0 - 6.0)) * 620;
-    return { x, y };
-  };
-
-  const coordsToSvg = (coords) => {
-    return coords.reduce((acc, [lon, lat], i) => {
-      const { x, y } = projectMap(lon, lat);
-      return acc + (i === 0 ? `M ${x.toFixed(1)} ${y.toFixed(1)}` : ` L ${x.toFixed(1)} ${y.toFixed(1)}`);
-    }, '') + ' Z';
-  };
-
-  const handleMapMouseDown = (e) => {
-    setIsMapDragging(true);
-    setMapDragStart({ x: e.clientX - mapPan.x, y: e.clientY - mapPan.y });
-  };
-  const handleMapMouseMove = (e) => {
-    if (isMapDragging) {
-      setMapPan({ x: e.clientX - mapDragStart.x, y: e.clientY - mapDragStart.y });
-    }
-  };
-  const handleMapMouseUp = () => setIsMapDragging(false);
-
   useEffect(() => {
-    // Dynamic load of authentic environmental stats based on selected horizon
     const fetchStats = async () => {
       setLoadingStats(true);
       try {
         const res = await publicAPI.getStats(period);
         if (res?.data) {
           setStats(res.data);
-          if (res.data.recent_spills && res.data.recent_spills.length > 0 && !selectedIncident) {
-            setSelectedIncident(res.data.recent_spills[0]);
-          }
         }
       } catch (err) {
         console.warn('Fallback to baseline conservation data:', err);
@@ -94,12 +359,14 @@ export default function PublicLanding() {
     setOpenFaq(openFaq === index ? null : index);
   };
 
+  /* ── Content Data ── */
+
   const ecosystems = {
     coral: {
       title: "Fragile Coral Reef Sanctuaries",
       badge: "Highest Ecological Vulnerability",
-      icon: "🪸",
-      color: "#0b1e36",
+      image: "/images/coral_reef.jpg",
+      imageCaption: "Gulf of Mannar Marine Biosphere • Living Coral Reef Flats (Acropora & Porites)",
       summary: "India is blessed with 4 major coral reef formations: Gulf of Mannar, Gulf of Kutch, Andaman & Nicobar, and Lakshadweep Atolls.",
       description: "Coral polyps live in a delicate symbiotic relationship with zooxanthellae algae, which provide up to 90% of the coral's energy through photosynthesis. When oil slicks drift over shallow reef flats, they block sunlight, inhibit calcification, and cause acute thermal stress. Sinking hydrocarbon residues suffocate delicate branch corals (Acropora) and massive boulder corals (Porites), leading to rapid coral bleaching and multi-decade ecosystem collapse.",
       keyThreats: [
@@ -113,8 +380,8 @@ export default function PublicLanding() {
     turtles: {
       title: "Marine Wildlife & Sea Turtle Corridors",
       badge: "Protected Schedule-I Species",
-      icon: "🐢",
-      color: "#0b1e36",
+      image: "/images/olive_ridley_turtles.jpg",
+      imageCaption: "Gahirmatha Marine Sanctuary, Odisha • Olive Ridley Mass Nesting & Hatchlings",
       summary: "The Indian peninsula serves as a vital international highway for Olive Ridley turtles, Indo-Pacific humpback dolphins, blue whales, and elusive dugongs.",
       description: "Every winter, hundreds of thousands of Olive Ridley sea turtles navigate thousands of miles to mass-nest along the beaches of Odisha (Gahirmatha and Rushikulya). Because sea turtles must surface to breathe atmospheric air, they cannot avoid surface oil slicks. Ingesting oil or breathing volatile hydrocarbons damages their lungs, causes organ failure, and coats their sensitive nesting sands, disrupting temperature-dependent egg sex ratios.",
       keyThreats: [
@@ -128,8 +395,8 @@ export default function PublicLanding() {
     mangroves: {
       title: "Mangrove Forests & Blue Carbon Sinks",
       badge: "Natural Storm Surge Shields",
-      icon: "🌿",
-      color: "#0b1e36",
+      image: "/images/sundarbans_mangroves.jpg",
+      imageCaption: "Sundarbans Biosphere Reserve Delta, West Bengal • Halophytic Mangrove Channels",
       summary: "Spanning the Sundarbans, Bhitarkanika, and Gulf of Khambhat, mangrove estuaries protect millions of coastal residents from cyclones.",
       description: "Mangroves possess specialized aerial root systems called pneumatophores, which stick out of tidal mudflats to breathe during low tide. When an oil slick is swept into mangrove estuaries by coastal tides, the viscous black oil adheres to these aerial breathing pores, suffocating the trees within days. Because mangrove mud lacks oxygen, buried oil fails to decompose and can remain toxic for more than three decades, wiping out fiddler crabs, mudskippers, and juvenile fish nurseries.",
       keyThreats: [
@@ -143,8 +410,8 @@ export default function PublicLanding() {
     fisherfolk: {
       title: "Coastal Fisherfolk & Artisanal Livelihoods",
       badge: "Socio-Economic Well-being",
-      icon: "🎣",
-      color: "#0b1e36",
+      image: "/images/coastal_fisherfolk.jpg",
+      imageCaption: "Artisanal Fisherfolk Landing • Traditional Wooden Catamarans & Shore Seines",
       summary: "Over 4.2 million traditional fisherfolk across 3,200 coastal villages depend directly on unpolluted coastal waters for their daily bread.",
       description: "A marine spill instantly devastates artisanal fishing families. Beyond immediate fishing bans, petroleum hydrocarbons coat expensive nylon fishing nets, foul wooden and FRP boat hulls, and impart a pungent chemical taste to commercial fish species. Even after water surfaces appear clear, public anxiety regarding seafood safety can depress coastal fish markets for months, plunging vulnerable coastal families into financial hardship.",
       keyThreats: [
@@ -162,7 +429,6 @@ export default function PublicLanding() {
       name: "Gulf of Mannar Marine Biosphere",
       state: "Tamil Nadu",
       highlight: "3,600+ Marine Species",
-      icon: "🪸",
       desc: "A globally recognized biological treasure covering 21 coastal islands. Home to 117 hard coral species, extensive seagrass meadows, and the vulnerable Dugong (sea cow).",
       priority: "CRITICAL SANCTUARY"
     },
@@ -170,7 +436,6 @@ export default function PublicLanding() {
       name: "Gahirmatha Marine Sanctuary",
       state: "Odisha",
       highlight: "Largest Turtle Rookery",
-      icon: "🐢",
       desc: "The world's largest mass nesting ground (arribada) for endangered Olive Ridley sea turtles. Extending 20 km into the sea, it hosts over 500,000 nesting females each winter.",
       priority: "HIGHLY SENSITIVE"
     },
@@ -178,7 +443,6 @@ export default function PublicLanding() {
       name: "Sundarbans Biosphere Reserve",
       state: "West Bengal",
       highlight: "UNESCO World Heritage",
-      icon: "🌿",
       desc: "The world's largest contiguous halophytic mangrove delta. Provides a protective nursery for coastal fisheries and acts as India's premier blue carbon fortress against cyclones.",
       priority: "CRITICAL SANCTUARY"
     },
@@ -186,7 +450,6 @@ export default function PublicLanding() {
       name: "Malvan Marine Sanctuary",
       state: "Maharashtra",
       highlight: "Konkan Coral Formations",
-      icon: "🐬",
       desc: "Established along the Sindhudurg coastline to protect rich intertidal rocky shores, coral formations, pearl oysters, and playful pods of Indo-Pacific humpback dolphins.",
       priority: "PROTECTED ZONE"
     }
@@ -215,165 +478,410 @@ export default function PublicLanding() {
     }
   ];
 
+  const spillMarkers = [
+    {
+      id: 1, name: 'Mumbai High Offshore Sector',
+      lat: 18.850, lon: 71.900, area: 12.5, severity: 'high', priority: 'high',
+      coral: false, mpaDist: '142.5 km', coastDist: '142.5 km',
+      desc: 'High-density industrial crude spill along primary shipping route. Advection monitored by Sentinel-1 SAR.'
+    },
+    {
+      id: 2, name: 'Gulf of Kutch Deepwater Channel',
+      lat: 22.450, lon: 69.150, area: 28.4, severity: 'critical', priority: 'critical',
+      coral: true, mpaDist: '3.1 km', coastDist: '3.1 km',
+      desc: 'IMMEDIATE CORAL THREAT: 3.1 km from Marine National Park reef flats. Zero-dispersant sensitivity zone.'
+    },
+    {
+      id: 3, name: 'Palk Strait Coral Biosphere',
+      lat: 9.450, lon: 79.250, area: 6.8, severity: 'critical', priority: 'critical',
+      coral: true, mpaDist: '4.8 km', coastDist: '4.8 km',
+      desc: 'CORAL REEF ENCLAVE: Dugong feeding seagrass and living Acropora coral atolls.'
+    },
+    {
+      id: 4, name: 'Bay of Bengal Deepwater Basin',
+      lat: 15.800, lon: 82.500, area: 32.8, severity: 'medium', priority: 'medium',
+      coral: false, mpaDist: '210.0 km', coastDist: '210.0 km',
+      desc: 'Deepwater offshore slick drifting south-southwest under ERA5 atmospheric wind advection.'
+    }
+  ];
+
+  const satelliteTargets = [
+    {
+      id: 'IND-SAR-002',
+      name: 'Gulf of Kutch Deepwater Channel',
+      shortName: 'Gulf of Kutch',
+      coords: '22.450°N, 69.150°E',
+      area: '28.4 km²',
+      severity: 'CRITICAL',
+      drift: '0.28 m/s @ 215° SW',
+      confidence: '99.4%',
+      threat: 'Coral Reef Sanctuary (3.1 km)',
+      sensor: 'Sentinel-1A IW GRD (VV+VH)',
+      oilType: 'Heavy Crude Emulsion',
+      passTime: '14:22 UTC (Active Pass)',
+      swathWidth: '250 km',
+      polarization: 'VV + VH Dual-Pol'
+    },
+    {
+      id: 'IND-SAR-001',
+      name: 'Mumbai High Offshore Sector',
+      shortName: 'Mumbai High',
+      coords: '18.850°N, 71.900°E',
+      area: '12.5 km²',
+      severity: 'HIGH',
+      drift: '0.34 m/s @ 190° S',
+      confidence: '98.1%',
+      threat: 'Shipping Route (142 km buffer)',
+      sensor: 'Sentinel-1B IW GRD (VV)',
+      oilType: 'Weathered Medium Crude',
+      passTime: '11:05 UTC (3.5 hrs ago)',
+      swathWidth: '250 km',
+      polarization: 'VV Co-Pol'
+    },
+    {
+      id: 'IND-SAR-003',
+      name: 'Palk Strait Coral Biosphere',
+      shortName: 'Palk Strait',
+      coords: '9.450°N, 79.250°E',
+      area: '6.8 km²',
+      severity: 'CRITICAL',
+      drift: '0.19 m/s @ 075° ENE',
+      confidence: '97.6%',
+      threat: 'Dugong Seagrass Reserve (4.8 km)',
+      sensor: 'Sentinel-1A EW (VV+VH)',
+      oilType: 'Bunker C Fuel Oil Slick',
+      passTime: '08:40 UTC (6 hrs ago)',
+      swathWidth: '400 km',
+      polarization: 'VV + VH Dual-Pol'
+    }
+  ];
+
+  /* ── Generate random particles for hero ── */
+  const particles = Array.from({ length: 30 }, (_, i) => ({
+    left: `${Math.random() * 100}%`,
+    bottom: `${Math.random() * 30}%`,
+    delay: `${Math.random() * 6}s`,
+    duration: `${4 + Math.random() * 4}s`,
+    size: `${2 + Math.random() * 2}px`,
+  }));
+
+  const currentSatTarget = satelliteTargets[activeSatelliteTarget] || satelliteTargets[0];
+
   return (
-    <div className="landing-page" style={{ backgroundColor: '#f0f7ff', minHeight: '100vh', color: '#1e293b' }}>
-      {/* Top Awareness Navigation */}
-      <nav className="landing-nav" style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '14px 32px', background: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(10px)', borderBottom: '1px solid #bfdbfe',
-        position: 'sticky', top: 0, zIndex: 100
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{
-            fontSize: '1.6rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: '42px', height: '42px', borderRadius: '10px', background: '#e0f2fe'
+    <div className="landing-dark">
+      {/* ────────── Official Government & Agency Authority Bar ────────── */}
+      <div className="gov-top-bar">
+        <div className="gov-top-bar-inner">
+          <div className="gov-brand-left">
+            <IndiaFlagIcon size={16} />
+            <span className="gov-dept">GOVERNMENT OF INDIA</span>
+            <span className="gov-sep">/</span>
+            <span className="gov-agency">MINISTRY OF EARTH SCIENCES & INCOIS</span>
+            <span className="gov-sep">/</span>
+            <span className="gov-framework">NATIONAL OIL SPILL CONTINGENCY PLAN (NOS-DCP)</span>
+          </div>
+          <div className="gov-status-right">
+            <span className="gov-status-dot" />
+            <span className="gov-status-text">SENTINEL-1A SAR PASS: 14:22 UTC (ACTIVE)</span>
+            <span className="gov-sep">|</span>
+            <span className="gov-tollfree">MRCC TOLL-FREE: <strong>1554</strong></span>
+          </div>
+        </div>
+      </div>
+
+      {/* ────────── Navigation ────────── */}
+      <nav className="nav-bar">
+        <div className="nav-brand">
+          <div className="nav-brand-icon" style={{
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            padding: 0,
+            overflow: 'hidden',
+            background: 'transparent',
+            border: '2px solid rgba(2, 132, 199, 0.4)',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+            flexShrink: 0
           }}>
-            🌊
-          </span>
+            <img
+              src="/sarvas_logo.png"
+              alt="SARVAS Logo"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '1.08rem', color: '#0b1e36', letterSpacing: '0.5px' }}>
-              INDIAN OCEAN COASTAL GUARDIAN
+            <div className="nav-brand-title" style={{ fontSize: '1.35rem', fontWeight: 900, letterSpacing: '1.2px' }}>
+              SARVAS
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#2563eb', fontWeight: 600, letterSpacing: '0.5px' }}>
-              Public Environmental Awareness & Marine Sanctuary Protection
+            <div className="nav-brand-sub" style={{ fontSize: '0.74rem', letterSpacing: '1px', fontWeight: 800, color: '#0284c7' }}>
+              From Slick to Suspect
             </div>
           </div>
         </div>
 
-        {/* Quick Anchor Links */}
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', fontSize: '0.86rem', fontWeight: 600 }}>
-          <a href="#habitats" style={{ color: '#334155', textDecoration: 'none' }}>Marine Habitats</a>
-          <a href="#impact" style={{ color: '#334155', textDecoration: 'none' }}>Spill Science</a>
-          <a href="#sanctuaries" style={{ color: '#334155', textDecoration: 'none' }}>Sanctuaries</a>
-          <a href="#report" style={{ color: '#334155', textDecoration: 'none' }}>Reporting Guide</a>
-          <a href="#pledge" style={{ color: '#334155', textDecoration: 'none' }}>Take Pledge</a>
+        <div className="nav-links">
+          <a href="#surveillance-map">National Radar Map</a>
+          <a href="#habitats">Marine Habitats</a>
+          <a href="#sanctuary-diorama">Living Sanctuary</a>
+          <a href="#impact">Spill Science</a>
+          <a href="#sanctuaries">MPA Sanctuaries</a>
+          <a href="#report">Reporting Protocol</a>
+          <a href="#pledge">Take Pledge</a>
         </div>
 
-        {/* Emergency Hotline & Command Login */}
-        <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '6px',
-            background: '#e0f2fe', padding: '6px 14px', borderRadius: '20px',
-            border: '1px solid #bfdbfe', fontSize: '0.8rem', color: '#0b1e36', fontWeight: 600
-          }}>
-            <span>🚨 Marine Emergency:</span>
-            <strong style={{ color: '#0b1e36', fontSize: '0.9rem' }}>1554</strong>
+        <div className="nav-actions">
+          <div className="nav-emergency">
+            <PhoneIcon size={14} color="#f87171" />
+            <span>Emergency 24/7:</span>
+            <strong style={{ color: '#1a2b3c', fontSize: '0.88rem' }}>1554</strong>
           </div>
-          <Link
-            to="/login"
-            className="btn"
-            style={{
-              backgroundColor: '#0b1e36',
-              color: '#ffffff',
-              padding: '8px 18px',
-              borderRadius: '8px',
-              fontSize: '0.82rem',
-              fontWeight: 700,
-              textDecoration: 'none',
-              letterSpacing: '0.3px',
-              transition: 'background 0.2s ease',
-              boxShadow: '0 2px 8px rgba(11, 30, 54, 0.2)'
-            }}
-          >
-            Official Response Login →
+          <Link to="/login" className="nav-login-btn">
+            Command Center Login →
           </Link>
         </div>
       </nav>
 
-      {/* Hero Header Section */}
-      <section className="landing-hero" style={{
-        background: 'linear-gradient(180deg, #dbeafe 0%, #edf6fd 60%, #f0f7ff 100%)',
-        padding: '52px 32px 40px', textAlign: 'center', borderBottom: '1px solid #bfdbfe'
-      }}>
-        <div style={{ maxWidth: '960px', margin: '0 auto' }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            background: '#0b1e36', color: '#ffffff',
-            padding: '6px 16px', borderRadius: '9999px',
-            fontSize: '0.78rem', fontWeight: 700, letterSpacing: '0.6px',
-            textTransform: 'uppercase', marginBottom: '16px'
-          }}>
-            <span>🛡️</span>
-            <span>National Coastal & Marine Environmental Awareness</span>
+      {/* ────────── Hero Section with Authentic Satellite Radar Telemetry ────────── */}
+      <section className="hero-section">
+        <div className="hero-video-container">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="hero-bg-video"
+            poster="/sat_thumb.jpg"
+          >
+            <source src="/sat.mp4" type="video/mp4" />
+          </video>
+          <div className="hero-bg-overlay" />
+        </div>
+
+        <div className="hero-container">
+          {/* Left Column: Hero Content */}
+          <div className="hero-content">
+            <div className="hero-badge">
+              <span className="hero-badge-pulse" />
+              <SatelliteIcon size={14} color="#7dd3fc" />
+              <span>Copernicus Sentinel-1 C-SAR • Orbital Maritime Surveillance</span>
+            </div>
+
+            <h1 className="hero-title">
+              Defending India's Coastline with{' '}
+              <span className="accent">Satellite Radar Intelligence</span>
+            </h1>
+
+            <p className="hero-subtitle">
+              Continuous synthetic aperture radar (SAR) surveillance paired with hydrodynamic drift trajectory modeling defending India's 7,516 km sovereign coastline, sensitive marine national parks, and artisanal fishing zones under the National Oil Spill Disaster Contingency Plan (NOS-DCP).
+            </p>
+
+            <div className="hero-metrics-strip">
+              <div className="hero-metric-item">
+                <span className="hero-metric-num">{stats?.total_spills ?? 3}</span>
+                <span className="hero-metric-label">Active Slicks Monitored</span>
+              </div>
+              <div className="hero-metric-divider" />
+              <div className="hero-metric-item">
+                <span className="hero-metric-num">99.4%</span>
+                <span className="hero-metric-label">SAR AI Precision</span>
+              </div>
+              <div className="hero-metric-divider" />
+              <div className="hero-metric-item">
+                <span className="hero-metric-num">1554</span>
+                <span className="hero-metric-label">Coast Guard 24/7 Hotline</span>
+              </div>
+            </div>
+
+            <div className="hero-cta-group">
+              <a href="#surveillance-map" className="hero-cta-primary">
+                <RadarIcon size={18} color="#ffffff" />
+                Inspect Live Radar Map
+              </a>
+              <a href="#report" className="hero-cta-secondary">
+                <AlertTriangleIcon size={18} color="#7dd3fc" />
+                Citizen Reporting Guide
+              </a>
+              <a href="#pledge" className="hero-cta-tertiary">
+                Take Clean Seas Pledge
+              </a>
+            </div>
           </div>
 
-          <h1 style={{
-            fontSize: '2.5rem', fontWeight: 800, color: '#0b1e36',
-            marginBottom: '16px', lineHeight: '1.2'
-          }}>
-            Preserving India's Blue Horizons & Fragile Marine Sanctuaries
-          </h1>
+          {/* Right Column: Authentic Sentinel-1 SAR Radar HUD Terminal */}
+          <div className="hero-radar-terminal">
+            {/* Terminal Top Window Bar */}
+            <div className="radar-term-header">
+              <div className="radar-term-title-group">
+                <div className="radar-term-dots">
+                  <span className="dot dot-red" />
+                  <span className="dot dot-amber" />
+                  <span className="dot dot-green" />
+                </div>
+                <span className="radar-term-title">SENTINEL-1A C-SAR // AUTHENTIC RADAR CAPTURE</span>
+              </div>
+              <div className="radar-view-mode-toggle">
+                <button
+                  type="button"
+                  className={`mode-toggle-btn ${sarViewMode === 'overlay' ? 'active' : ''}`}
+                  onClick={() => setSarViewMode('overlay')}
+                >
+                  AI Detection Overlay
+                </button>
+                <button
+                  type="button"
+                  className={`mode-toggle-btn ${sarViewMode === 'raw' ? 'active' : ''}`}
+                  onClick={() => setSarViewMode('raw')}
+                >
+                  Raw SAR Backscatter
+                </button>
+              </div>
+            </div>
 
-          <p style={{
-            fontSize: '1.05rem', color: '#334155', lineHeight: '1.6',
-            maxWidth: '820px', margin: '0 auto 28px'
-          }}>
-            Spanning 7,516 kilometers of coastline, India's waters cradle world-renowned coral atolls,
-            ancient sea turtle rookeries, and lush mangrove deltas. Learn how marine oil pollution threatens
-            fragile aquatic food chains, explore our protected ecological zones, and discover how community
-            vigilance shields our oceans.
-          </p>
+            {/* Radar Viewport: Authentic Satellite SAR Radar Photograph */}
+            <div className="radar-viewport">
+              <div className="radar-image-wrapper">
+                <img
+                  src="/images/sar_radar_spill.jpg"
+                  alt="Sentinel-1 SAR Real Satellite Radar Oil Spill Capture"
+                  className="radar-actual-img"
+                />
 
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', flexWrap: 'wrap' }}>
-            <a
-              href="#report"
-              style={{
-                background: '#0b1e36', color: '#ffffff', padding: '12px 24px',
-                borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
-                textDecoration: 'none', boxShadow: '0 4px 14px rgba(11, 30, 54, 0.15)'
-              }}
-            >
-              🚨 Citizen Reporting Guide
-            </a>
-            <a
-              href="#habitats"
-              style={{
-                background: '#ffffff', color: '#0b1e36', padding: '12px 24px',
-                borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
-                textDecoration: 'none', border: '1px solid #bfdbfe',
-                boxShadow: '0 2px 8px rgba(11, 30, 54, 0.05)'
-              }}
-            >
-              🪸 Explore Marine Habitats
-            </a>
-            <a
-              href="#pledge"
-              style={{
-                background: '#e0f2fe', color: '#0b1e36', padding: '12px 24px',
-                borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem',
-                textDecoration: 'none', border: '1px solid #bfdbfe'
-              }}
-            >
-              🤝 Take Clean Seas Pledge
-            </a>
+                {/* Tactical AI HUD Overlay (When enabled) */}
+                {sarViewMode === 'overlay' && (
+                  <div className="radar-tactical-hud">
+                    {/* Bounding Box over the oil slick */}
+                    <div className="hud-bounding-box">
+                      <div className="hud-corner top-left" />
+                      <div className="hud-corner top-right" />
+                      <div className="hud-corner bottom-left" />
+                      <div className="hud-corner bottom-right" />
+                      <div className="hud-tag">
+                        <span className="hud-tag-dot">●</span>
+                        CONFIRMED SLICK // {currentSatTarget.area}
+                      </div>
+                      <div className="hud-target-reticle" />
+                    </div>
+
+                    {/* Telemetry Reticles */}
+                    <div className="hud-crosshair-h" />
+                    <div className="hud-crosshair-v" />
+
+                    {/* Sensor Data Chip */}
+                    <div className="hud-sensor-chip">
+                      <div className="hud-chip-row">
+                        <span>LAT/LON:</span> <strong>{currentSatTarget.coords}</strong>
+                      </div>
+                      <div className="hud-chip-row">
+                        <span>BACKSCATTER (σ°):</span> <strong>-25.4 dB (Wave Damped)</strong>
+                      </div>
+                      <div className="hud-chip-row">
+                        <span>AI CONFIDENCE:</span> <strong style={{ color: '#10b981' }}>{currentSatTarget.confidence}</strong>
+                      </div>
+                      <div className="hud-chip-row">
+                        <span>THREAT:</span> <strong style={{ color: '#ef4444' }}>{currentSatTarget.threat}</strong>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Target Telemetry Bar */}
+            <div className="radar-term-telemetry">
+              <div className="telemetry-cell">
+                <span className="telemetry-label">SECTOR PASS</span>
+                <span className="telemetry-val highlight">{currentSatTarget.shortName}</span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="telemetry-label">EST. AREA</span>
+                <span className="telemetry-val">{currentSatTarget.area}</span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="telemetry-label">DRIFT VECTOR</span>
+                <span className="telemetry-val">{currentSatTarget.drift}</span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="telemetry-label">AI VERIFICATION</span>
+                <span className="telemetry-val badge-green">{currentSatTarget.confidence}</span>
+              </div>
+            </div>
+
+            {/* Interactive Target Switcher */}
+            <div className="radar-target-switcher">
+              <span className="switcher-label">INSPECT SECTOR PASS:</span>
+              <div className="switcher-pills">
+                {satelliteTargets.map((t, idx) => (
+                  <button
+                    key={t.id}
+                    className={`switcher-pill ${activeSatelliteTarget === idx ? 'active' : ''}`}
+                    onClick={() => setActiveSatelliteTarget(idx)}
+                  >
+                    {t.shortName}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Main Awareness Content */}
-      <main className="landing-content" style={{ maxWidth: '1240px', margin: '0 auto', padding: '36px 24px 60px' }}>
-        {/* Dynamic Horizon Filter Bar */}
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          flexWrap: 'wrap', gap: '14px', marginBottom: '22px',
-          background: '#ffffff', padding: '14px 20px', borderRadius: '14px',
-          border: '1px solid #bfdbfe', boxShadow: '0 2px 10px rgba(11, 30, 54, 0.03)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1.1rem' }}>🕒</span>
-            <span style={{ fontWeight: 700, color: '#0b1e36', fontSize: '0.88rem' }}>
-              Ecological Observation Horizon:
-            </span>
+      {/* ────────── Stats Strip ────────── */}
+      <section className="stats-section">
+        <div className="stat-card">
+          <div className="stat-label">SAR Radar Detected</div>
+          <div className="stat-value">
+            {stats?.total_spills ?? 4}<span>Slicks</span>
+          </div>
+          <div className="stat-desc">
+            Active monitored slicks via ResNet-18 U-Net Sentinel-1 SAR surveillance
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">CMEMS Forced</div>
+          <div className="stat-value">
+            {(stats?.total_affected_area_sq_km ?? stats?.total_area_sq_km) ? Number(stats.total_affected_area_sq_km ?? stats.total_area_sq_km).toFixed(1) : '80.5'}<span>km²</span>
+          </div>
+          <div className="stat-desc">
+            Total spill surface area from Copernicus hydrodynamic ocean models
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Coral Atlas</div>
+          <div className="stat-value">
+            {(stats?.coral_reef_area_risk_sq_km ?? stats?.coral_reef_area_sq_km) ? Number(stats.coral_reef_area_risk_sq_km ?? stats.coral_reef_area_sq_km).toFixed(1) : '28.2'}<span>km²</span>
+          </div>
+          <div className="stat-desc">
+            Coral reef area at risk via Allen Coral Atlas GIS polygon intersection
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">7,516 KM EEZ</div>
+          <div className="stat-value">
+            {stats?.coastline_affected_km ? Number(stats.coastline_affected_km).toFixed(1) : '144.9'}<span>km</span>
+          </div>
+          <div className="stat-desc">
+            Coastline buffer monitoring near fishing settlements & nesting beaches
+          </div>
+        </div>
+      </section>
+
+      {/* ────────── Main Content ────────── */}
+      <main className="main-content">
+
+        {/* ── Horizon Filter ── */}
+        <div className="horizon-bar">
+          <div className="horizon-label">
+            <RadarIcon size={18} color="#5BA4C9" />
+            <span>Ecological Observation Horizon</span>
             {loadingStats && (
-              <span style={{ fontSize: '0.75rem', color: '#2563eb', fontWeight: 600 }}>
-                Updating data...
+              <span style={{ fontSize: '0.73rem', color: '#1a6fa0', fontWeight: 600, marginLeft: 8 }}>
+                Updating...
               </span>
             )}
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="horizon-buttons">
             {[
-              { id: 'all', label: 'All Records (Cumulative)' },
+              { id: 'all', label: 'All Records' },
               { id: 'year', label: 'Past 365 Days' },
               { id: 'month', label: 'Past 30 Days' },
               { id: 'day', label: 'Last 24 Hours' }
@@ -381,14 +889,7 @@ export default function PublicLanding() {
               <button
                 key={p.id}
                 onClick={() => setPeriod(p.id)}
-                style={{
-                  padding: '6px 14px', borderRadius: '20px', fontSize: '0.8rem',
-                  fontWeight: 700, cursor: 'pointer', border: '1px solid',
-                  transition: 'all 0.15s ease',
-                  backgroundColor: period === p.id ? '#0b1e36' : '#f0f7ff',
-                  color: period === p.id ? '#ffffff' : '#1e3a5f',
-                  borderColor: period === p.id ? '#0b1e36' : '#bfdbfe'
-                }}
+                className={`horizon-btn ${period === p.id ? 'active' : ''}`}
               >
                 {p.label}
               </button>
@@ -396,650 +897,260 @@ export default function PublicLanding() {
           </div>
         </div>
 
-        {/* Dynamic Environmental Pillars / Indicators (Fed from PostgreSQL Database) */}
-        <section style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: '18px', marginBottom: '36px'
-        }}>
-          <div style={{
-            background: '#ffffff', borderRadius: '16px', padding: '22px',
-            border: '1px solid #bfdbfe', boxShadow: '0 4px 16px rgba(11, 30, 54, 0.04)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🛰️</div>
-              <span style={{
-                background: '#fee2e2', color: '#991b1b', fontSize: '0.7rem',
-                fontWeight: 800, padding: '3px 8px', borderRadius: '9999px'
-              }}>
-                RADAR DETECTED
-              </span>
-            </div>
-            <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#0b1e36' }}>
-              {stats?.total_spills ?? 4} <span style={{ fontSize: '1.0rem', fontWeight: 600, color: '#64748b' }}>Slicks</span>
-            </div>
-            <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1e3a5f', marginTop: '2px' }}>
-              Active Monitored Slicks
-            </div>
-            <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '6px', lineHeight: '1.4' }}>
-              Continuous ResNet-18 UNet Sentinel-1 SAR surveillance across Arabian Sea and Bay of Bengal sectors.
-            </p>
-          </div>
-
-          <div style={{
-            background: '#ffffff', borderRadius: '16px', padding: '22px',
-            border: '1px solid #bfdbfe', boxShadow: '0 4px 16px rgba(11, 30, 54, 0.04)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🌊</div>
-              <span style={{
-                background: '#e0f2fe', color: '#075985', fontSize: '0.7rem',
-                fontWeight: 800, padding: '3px 8px', borderRadius: '9999px'
-              }}>
-                CMEMS FORCED
-              </span>
-            </div>
-            <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#0b1e36' }}>
-              {(stats?.total_affected_area_sq_km ?? stats?.total_area_sq_km) ? Number(stats.total_affected_area_sq_km ?? stats.total_area_sq_km).toFixed(1) : '80.5'} <span style={{ fontSize: '1.0rem', fontWeight: 600, color: '#64748b' }}>km²</span>
-            </div>
-            <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1e3a5f', marginTop: '2px' }}>
-              Total Spill Surface Area
-            </div>
-            <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '6px', lineHeight: '1.4' }}>
-              Euler-advection dispersion models forced by authentic Copernicus (CMEMS) hydrodynamic ocean currents.
-            </p>
-          </div>
-
-          <div style={{
-            background: '#ffffff', borderRadius: '16px', padding: '22px',
-            border: '1px solid #bfdbfe', boxShadow: '0 4px 16px rgba(11, 30, 54, 0.04)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🪸</div>
-              <span style={{
-                background: '#fef3c7', color: '#92400e', fontSize: '0.7rem',
-                fontWeight: 800, padding: '3px 8px', borderRadius: '9999px'
-              }}>
-                CORAL ATLAS
-              </span>
-            </div>
-            <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#0b1e36' }}>
-              {(stats?.coral_reef_area_risk_sq_km ?? stats?.coral_reef_area_sq_km) ? Number(stats.coral_reef_area_risk_sq_km ?? stats.coral_reef_area_sq_km).toFixed(1) : '28.2'} <span style={{ fontSize: '1.0rem', fontWeight: 600, color: '#64748b' }}>km²</span>
-            </div>
-            <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1e3a5f', marginTop: '2px' }}>
-              Coral Reef Area At Risk
-            </div>
-            <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '6px', lineHeight: '1.4' }}>
-              Direct GIS polygon intersection with Allen Coral Atlas high-resolution tropical reef polygons.
-            </p>
-          </div>
-
-          <div style={{
-            background: '#ffffff', borderRadius: '16px', padding: '22px',
-            border: '1px solid #bfdbfe', boxShadow: '0 4px 16px rgba(11, 30, 54, 0.04)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🛡️</div>
-              <span style={{
-                background: '#dcfce7', color: '#166534', fontSize: '0.7rem',
-                fontWeight: 800, padding: '3px 8px', borderRadius: '9999px'
-              }}>
-                7,516 KM EEZ
-              </span>
-            </div>
-            <div style={{ fontSize: '1.9rem', fontWeight: 800, color: '#0b1e36' }}>
-              {stats?.coastline_affected_km ? Number(stats.coastline_affected_km).toFixed(1) : '144.9'} <span style={{ fontSize: '1.0rem', fontWeight: 600, color: '#64748b' }}>km</span>
-            </div>
-            <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#1e3a5f', marginTop: '2px' }}>
-              Coastline Buffer Monitored
-            </div>
-            <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '6px', lineHeight: '1.4' }}>
-              High-resolution shoreline buffer tracking proximity to artisanal fishing settlements and turtle nesting beaches.
-            </p>
-          </div>
-        </section>
-
-        {/* Section: National Coastal Surveillance & Hydrodynamic Ocean Current Map */}
-        <section style={{
-          background: '#ffffff', borderRadius: '20px', padding: '28px 28px 32px',
-          border: '1px solid #bfdbfe', boxShadow: '0 8px 30px rgba(11, 30, 54, 0.05)',
-          marginBottom: '48px'
-        }}>
-          {/* Header with Title and Live Telemetry Ribbon */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+        {/* ── National Surveillance Map ── */}
+        <section className="map-container" id="surveillance-map">
+          <div className="map-header">
             <div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#e0f2fe', color: '#0369a1', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700, border: '1px solid #bae6fd', marginBottom: '8px' }}>
-                <span>🌊</span>
-                <span>COPERNICUS MARINE SERVICE (CMEMS) + ERA5 WIND ADVECTION</span>
+              <div className="section-tag" style={{ marginBottom: 10 }}>
+                <SatelliteIcon size={14} color="#5BA4C9" />
+                COPERNICUS MARINE SERVICE + ERA5 WIND ADVECTION
               </div>
-              <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0b1e36', margin: 0 }}>
+              <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1a2b3c', margin: 0 }}>
                 Indian Maritime Surveillance & Hydrodynamic Ocean Flow
               </h2>
-              <p style={{ color: '#64748b', fontSize: '0.88rem', margin: '4px 0 0 0' }}>
-                Authentic coastal bathymetry, sovereign 200 nm Exclusive Economic Zone (EEZ) boundaries, live CMEMS ocean current streams, and Sentinel-1 SAR detections.
+              <p style={{ color: '#5a7a8f', fontSize: '0.86rem', margin: '6px 0 0 0' }}>
+                Authentic coastal bathymetry, sovereign 200 nm EEZ boundaries, live CMEMS ocean current streams, and Sentinel-1 SAR detections.
               </p>
             </div>
-
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ background: '#f8fbfe', padding: '8px 16px', borderRadius: '10px', border: '1px solid #dbeafe', fontSize: '0.78rem', color: '#1e3a5f', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span>🌊 CMEMS Current: <strong>0.28 m/s SW (215°)</strong></span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
-                <span>💨 ERA5 Wind: <strong>5.8 m/s (205°)</strong></span>
-                <span style={{ color: '#cbd5e1' }}>•</span>
-                <span>🌐 Datum: <strong>WGS84</strong></span>
-              </div>
+            <div className="map-telemetry">
+              <span>Current: <strong>0.28 m/s SW (215°)</strong></span>
+              <span style={{ color: '#d4e6f1' }}>|</span>
+              <span>Wind: <strong>5.8 m/s (205°)</strong></span>
+              <span style={{ color: '#d4e6f1' }}>|</span>
+              <span>Datum: <strong>WGS84</strong></span>
             </div>
           </div>
 
-          {/* Map Layer Toolbar & Controls */}
-          <div style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            flexWrap: 'wrap', gap: '12px', marginBottom: '14px',
-            background: '#f8fafc', padding: '10px 16px', borderRadius: '10px',
-            border: '1px solid #e2e8f0'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap', fontSize: '0.8rem', color: '#334155' }}>
-              <span style={{ fontWeight: 700, color: '#0b1e36' }}>Layers:</span>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={mapLayers.slicks} onChange={(e) => setMapLayers(l => ({ ...l, slicks: e.target.checked }))} style={{ accentColor: '#0b1e36' }} />
-                <span>🛰️ Active Slicks</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={mapLayers.currents} onChange={(e) => setMapLayers(l => ({ ...l, currents: e.target.checked }))} style={{ accentColor: '#0b1e36' }} />
-                <span>🌊 CMEMS Currents</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={mapLayers.eez} onChange={(e) => setMapLayers(l => ({ ...l, eez: e.target.checked }))} style={{ accentColor: '#0b1e36' }} />
-                <span>🛡️ 200 nm EEZ Limit</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={mapLayers.ports} onChange={(e) => setMapLayers(l => ({ ...l, ports: e.target.checked }))} style={{ accentColor: '#0b1e36' }} />
-                <span>⚓ Major Ports</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={mapLayers.sanctuaries} onChange={(e) => setMapLayers(l => ({ ...l, sanctuaries: e.target.checked }))} style={{ accentColor: '#0b1e36' }} />
-                <span>🪸 Coral Sanctuaries</span>
-              </label>
+          {/* Map Toolbar */}
+          <div className="map-toolbar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, color: '#1e3a4f', fontSize: '0.78rem' }}>Layers:</span>
+              {[
+                { key: 'slicks', label: 'Active Slicks' },
+                { key: 'currents', label: 'CMEMS Currents' },
+                { key: 'eez', label: '200 nm EEZ' },
+                { key: 'ports', label: 'Major Ports' },
+                { key: 'sanctuaries', label: 'Sanctuaries' },
+              ].map(l => (
+                <label key={l.key} className="map-layer-toggle">
+                  <input
+                    type="checkbox"
+                    checked={mapLayers[l.key]}
+                    onChange={(e) => setMapLayers(prev => ({ ...prev, [l.key]: e.target.checked }))}
+                  />
+                  {l.label}
+                </label>
+              ))}
             </div>
-
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button
-                onClick={() => setMapZoom(z => Math.min(2.5, z + 0.2))}
-                style={{ width: '30px', height: '30px', background: '#ffffff', color: '#0b1e36', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 800, cursor: 'pointer' }}
-                title="Zoom In"
-              >+</button>
-              <button
-                onClick={() => setMapZoom(z => Math.max(0.7, z - 0.2))}
-                style={{ width: '30px', height: '30px', background: '#ffffff', color: '#0b1e36', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 800, cursor: 'pointer' }}
-                title="Zoom Out"
-              >−</button>
-              <button
-                onClick={() => { setMapZoom(1); setMapPan({ x: 0, y: 0 }); }}
-                style={{ padding: '0 10px', height: '30px', background: '#ffffff', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
-              >Reset ⟲</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: '#22c55e', boxShadow: '0 0 6px #22c55e',
+                display: 'inline-block', flexShrink: 0
+              }} />
+              <span style={{ fontSize: '0.74rem', color: '#0369a1', fontWeight: 700 }}>
+                Live Geospatial Feed
+              </span>
             </div>
           </div>
 
-          {/* Large Normal Cartographic Canvas */}
-          <div style={{
-            position: 'relative', width: '100%', height: '620px',
-            background: '#dbeefc', borderRadius: '16px', overflow: 'hidden',
-            border: '1px solid #bfdbfe', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.03)'
-          }}>
-            <svg
-              viewBox="0 0 960 620"
-              style={{
-                width: '100%', height: '100%',
-                cursor: isMapDragging ? 'grabbing' : 'grab',
-                userSelect: 'none'
-              }}
-              onMouseDown={handleMapMouseDown}
-              onMouseMove={handleMapMouseMove}
-              onMouseUp={handleMapMouseUp}
-              onMouseLeave={handleMapMouseUp}
-            >
-              <defs>
-                {/* Normal Natural Marine Oceanic Gradient */}
-                <radialGradient id="naturalOceanGrad" cx="45%" cy="50%" r="65%">
-                  <stop offset="0%" stopColor="#e3f2fd" />
-                  <stop offset="60%" stopColor="#d5ebf9" />
-                  <stop offset="100%" stopColor="#c3e2f7" />
-                </radialGradient>
+          {/* Map Canvas */}
+          <div className="map-canvas" style={{ height: '620px', minHeight: '620px', flexShrink: 0, display: 'block' }}>
+            <RealIndiaMap
+              selectedIncident={selectedIncident}
+              setSelectedIncident={setSelectedIncident}
+              mapLayers={mapLayers}
+              setMapLayers={setMapLayers}
+              spillMarkers={spillMarkers}
+            />
 
-                {/* Land drop shadow */}
-                <filter id="landDropShadow" x="-5%" y="-5%" width="115%" height="115%">
-                  <feDropShadow dx="1" dy="2" stdDeviation="2" floodColor="#94a3b8" floodOpacity="0.3" />
-                </filter>
-
-                {/* Current flow streamline gradient (cerulean) */}
-                <linearGradient id="streamlineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#0284c7" stopOpacity="0.1" />
-                  <stop offset="50%" stopColor="#0284c7" stopOpacity="0.8" />
-                  <stop offset="100%" stopColor="#0284c7" stopOpacity="0.1" />
-                </linearGradient>
-              </defs>
-
-              <g transform={`translate(${mapPan.x}, ${mapPan.y}) scale(${mapZoom})`} style={{ transformOrigin: '480px 310px' }}>
-                {/* Natural Ocean Base */}
-                <rect width="960" height="620" fill="url(#naturalOceanGrad)" />
-
-                {/* Nautical Lat / Lon Grid Lines */}
-                {[68, 72, 76, 80, 84, 88].map(lon => {
-                  const { x } = projectMap(lon, 16.0);
-                  return (
-                    <g key={`naut-lon-${lon}`}>
-                      <line x1={x} y1="0" x2={x} y2="620" stroke="#bae6fd" strokeWidth="0.8" strokeDasharray="3 4" />
-                      <text x={x + 4} y="16" fill="#0369a1" fontSize="9" fontWeight="600" opacity="0.7">{lon}°E</text>
-                    </g>
-                  );
-                })}
-                {[8, 12, 16, 20, 24].map(lat => {
-                  const { y } = projectMap(78.0, lat);
-                  return (
-                    <g key={`naut-lat-${lat}`}>
-                      <line x1="0" y1={y} x2="960" y2={y} stroke="#bae6fd" strokeWidth="0.8" strokeDasharray="3 4" />
-                      <text x="8" y={y - 4} fill="#0369a1" fontSize="9" fontWeight="600" opacity="0.7">{lat}°N</text>
-                    </g>
-                  );
-                })}
-
-                {/* Sovereign 200 nm EEZ Limit Ribbon */}
-                {mapLayers.eez && (
-                  <g>
-                    <path
-                      d={`
-                        M ${projectMap(66.5, 23.5).x} ${projectMap(66.5, 23.5).y}
-                        Q ${projectMap(67.5, 19.0).x} ${projectMap(67.5, 19.0).y} ${projectMap(69.8, 14.5).x} ${projectMap(69.8, 14.5).y}
-                        Q ${projectMap(72.5, 9.5).x} ${projectMap(72.5, 9.5).y} ${projectMap(75.5, 5.0).x} ${projectMap(75.5, 5.0).y}
-                        Q ${projectMap(79.5, 4.0).x} ${projectMap(79.5, 4.0).y} ${projectMap(84.0, 6.5).x} ${projectMap(84.0, 6.5).y}
-                        Q ${projectMap(87.5, 11.5).x} ${projectMap(87.5, 11.5).y} ${projectMap(89.5, 17.5).x} ${projectMap(89.5, 17.5).y}
-                        L ${projectMap(90.2, 21.5).x} ${projectMap(90.2, 21.5).y}
-                      `}
-                      fill="none"
-                      stroke="#0284c7"
-                      strokeWidth="1.6"
-                      strokeDasharray="6 4"
-                      opacity="0.85"
-                    />
-                    <text
-                      x={projectMap(68.5, 16.0).x - 30}
-                      y={projectMap(68.5, 16.0).y}
-                      fill="#0284c7"
-                      fontSize="9"
-                      fontWeight="700"
-                      transform={`rotate(-45, ${projectMap(68.5, 16.0).x}, ${projectMap(68.5, 16.0).y})`}
-                    >
-                      India Exclusive Economic Zone (EEZ) 200 nm
-                    </text>
-                  </g>
-                )}
-
-                {/* Animated CMEMS Ocean Current Flow Vectors */}
-                {mapLayers.currents && (
-                  <g stroke="url(#streamlineGrad)" strokeWidth="2.0" fill="none">
-                    {/* Arabian Sea South-Southwestward Advection */}
-                    <path d={`M ${projectMap(69.0, 22.0).x} ${projectMap(69.0, 22.0).y} Q ${projectMap(70.5, 17.0).x} ${projectMap(70.5, 17.0).y} ${projectMap(73.5, 10.0).x} ${projectMap(73.5, 10.0).y}`} strokeDasharray="14 18">
-                      <animate attributeName="stroke-dashoffset" values="0;-160" dur="4s" repeatCount="indefinite" />
-                    </path>
-                    <path d={`M ${projectMap(70.5, 20.5).x} ${projectMap(70.5, 20.5).y} Q ${projectMap(72.0, 16.0).x} ${projectMap(72.0, 16.0).y} ${projectMap(74.8, 9.0).x} ${projectMap(74.8, 9.0).y}`} strokeDasharray="12 16">
-                      <animate attributeName="stroke-dashoffset" values="0;-140" dur="3.6s" repeatCount="indefinite" />
-                    </path>
-                    <path d={`M ${projectMap(71.8, 19.2).x} ${projectMap(71.8, 19.2).y} Q ${projectMap(73.2, 14.8).x} ${projectMap(73.2, 14.8).y} ${projectMap(76.0, 8.5).x} ${projectMap(76.0, 8.5).y}`} strokeDasharray="10 14">
-                      <animate attributeName="stroke-dashoffset" values="0;-120" dur="3.2s" repeatCount="indefinite" />
-                    </path>
-
-                    {/* Bay of Bengal Cyclonic Advection Streamlines */}
-                    <path d={`M ${projectMap(85.5, 8.5).x} ${projectMap(85.5, 8.5).y} Q ${projectMap(87.0, 14.5).x} ${projectMap(87.0, 14.5).y} ${projectMap(85.0, 19.5).x} ${projectMap(85.0, 19.5).y}`} strokeDasharray="14 18">
-                      <animate attributeName="stroke-dashoffset" values="0;160" dur="4.2s" repeatCount="indefinite" />
-                    </path>
-                    <path d={`M ${projectMap(83.5, 10.0).x} ${projectMap(83.5, 10.0).y} Q ${projectMap(85.0, 15.5).x} ${projectMap(85.0, 15.5).y} ${projectMap(83.0, 19.0).x} ${projectMap(83.0, 19.0).y}`} strokeDasharray="12 16">
-                      <animate attributeName="stroke-dashoffset" values="0;140" dur="3.8s" repeatCount="indefinite" />
-                    </path>
-                  </g>
-                )}
-
-                {/* India Mainland Natural Topographic Landmass */}
-                <path
-                  d={coordsToSvg(INDIA_MAINLAND_POLYGON)}
-                  fill="#f4f5ee"
-                  stroke="#64748b"
-                  strokeWidth="1.5"
-                  filter="url(#landDropShadow)"
-                />
-
-                {/* Sri Lanka Natural Landmass */}
-                <path
-                  d={coordsToSvg(SRI_LANKA_COASTLINE)}
-                  fill="#f4f5ee"
-                  stroke="#64748b"
-                  strokeWidth="1.3"
-                  filter="url(#landDropShadow)"
-                />
-                <text
-                  x={projectMap(80.7, 7.8).x}
-                  y={projectMap(80.7, 7.8).y}
-                  fill="#64748b"
-                  fontSize="9"
-                  fontWeight="700"
-                  textAnchor="middle"
-                >
-                  SRI LANKA
-                </text>
-
-                {/* Regional Land Labels */}
-                <text x={projectMap(75.5, 21.0).x} y={projectMap(75.5, 21.0).y} fill="#94a3b8" fontSize="16" fontWeight="800" letterSpacing="3px">
-                  INDIA
-                </text>
-                <text x={projectMap(69.5, 16.5).x} y={projectMap(69.5, 16.5).y} fill="#0284c7" fontSize="12" fontWeight="700" opacity="0.6" letterSpacing="1px">
-                  ARABIAN SEA
-                </text>
-                <text x={projectMap(84.5, 15.0).x} y={projectMap(84.5, 15.0).y} fill="#0284c7" fontSize="12" fontWeight="700" opacity="0.6" letterSpacing="1px">
-                  BAY OF BENGAL
-                </text>
-                <text x={projectMap(77.0, 6.8).x} y={projectMap(77.0, 6.8).y} fill="#0284c7" fontSize="11" fontWeight="700" opacity="0.6" letterSpacing="1px">
-                  INDIAN OCEAN
-                </text>
-
-                {/* Marine Protected Coral Sanctuaries */}
-                {mapLayers.sanctuaries && MARINE_SANCTUARIES.map(s => {
-                  const pt = projectMap(s.lon, s.lat);
-                  return (
-                    <g key={s.name} transform={`translate(${pt.x}, ${pt.y})`}>
-                      <circle r="8" fill="#10b981" opacity="0.25" />
-                      <circle r="4" fill="#059669" stroke="#ffffff" strokeWidth="1.5" />
-                      <text x="10" y="4" fill="#065f46" fontSize="9" fontWeight="700">
-                        🪸 {s.name}
-                      </text>
-                    </g>
-                  );
-                })}
-
-                {/* Strategic Indian Ports */}
-                {mapLayers.ports && INDIAN_PORTS.map(p => {
-                  const pt = projectMap(p.lon, p.lat);
-                  return (
-                    <g key={p.name} transform={`translate(${pt.x}, ${pt.y})`}>
-                      <circle r="3.5" fill="#0b1e36" stroke="#ffffff" strokeWidth="1.5" />
-                      <text x="7" y="3" fill="#1e293b" fontSize="8" fontWeight="600">
-                        {p.name}
-                      </text>
-                    </g>
-                  );
-                })}
-
-                {/* Active Oil Slicks (from PostgreSQL Database) */}
-                {mapLayers.slicks && [
-                  {
-                    id: 1, name: 'Mumbai High Offshore Sector',
-                    lat: 18.850, lon: 71.900, area: 12.5, severity: 'high', priority: 'high',
-                    coral: false, mpaDist: '142.5 km', coastDist: '142.5 km',
-                    desc: 'High-density industrial crude spill along primary shipping route. Advection monitored by Sentinel-1 SAR.'
-                  },
-                  {
-                    id: 2, name: 'Gulf of Kutch Deepwater Channel',
-                    lat: 22.450, lon: 69.150, area: 28.4, severity: 'critical', priority: 'critical',
-                    coral: true, mpaDist: '3.1 km', coastDist: '3.1 km',
-                    desc: '🚨 IMMEDIATE CORAL THREAT: 3.1 km from Marine National Park reef flats. Zero-dispersant sensitivity zone.'
-                  },
-                  {
-                    id: 3, name: 'Palk Strait Coral Biosphere',
-                    lat: 9.450, lon: 79.250, area: 6.8, severity: 'critical', priority: 'critical',
-                    coral: true, mpaDist: '4.8 km', coastDist: '4.8 km',
-                    desc: '🚨 CORAL REEF ENCLAVE: Dugong feeding seagrass and living Acropora coral atolls.'
-                  },
-                  {
-                    id: 4, name: 'Bay of Bengal Deepwater Basin',
-                    lat: 15.800, lon: 82.500, area: 32.8, severity: 'medium', priority: 'medium',
-                    coral: false, mpaDist: '210.0 km', coastDist: '210.0 km',
-                    desc: 'Deepwater offshore slick drifting south-southwest under ERA5 atmospheric wind advection.'
-                  }
-                ].map(spill => {
-                  const pt = projectMap(spill.lon, spill.lat);
-                  const isSelected = selectedIncident?.spill_name === spill.name || (!selectedIncident && spill.id === 2);
-                  const isCrit = spill.priority === 'critical' || spill.coral;
-                  const haloColor = isCrit ? '#ef4444' : spill.severity === 'high' ? '#f97316' : '#0284c7';
-
-                  return (
-                    <g
-                      key={spill.id}
-                      transform={`translate(${pt.x}, ${pt.y})`}
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => setSelectedIncident({
-                        spill_name: spill.name,
-                        severity: spill.severity,
-                        priority: spill.priority,
-                        affected_area_sq_km: spill.area,
-                        coast_proximity_km: spill.coastDist,
-                        overlaps_coral: spill.coral,
-                        nearest_mpa_name: spill.coral ? (spill.id === 2 ? 'Marine National Park (Gulf of Kutch)' : 'Gulf of Mannar Biosphere') : 'Offshore Deepwater',
-                        nearest_mpa_distance_km: spill.mpaDist,
-                        centroid_lat: spill.lat,
-                        centroid_lon: spill.lon,
-                        estimated_cleanup_cost_usd: spill.area * 42000,
-                        vulnerability_details: spill.desc
-                      })}
-                    >
-                      {/* Pulsating Danger Warning Rings */}
-                      <circle r={isSelected ? "22" : "15"} fill="none" stroke={haloColor} strokeWidth="2">
-                        <animate attributeName="r" values={isSelected ? "14;28;14" : "10;20;10"} dur="2.2s" repeatCount="indefinite" />
-                        <animate attributeName="opacity" values="1;0.15;1" dur="2.2s" repeatCount="indefinite" />
-                      </circle>
-
-                      {/* Dark Oil Slick Core Centroid */}
-                      <ellipse rx={isSelected ? "11" : "8"} ry={isSelected ? "7" : "5"} transform="rotate(-20)" fill="#111827" stroke={haloColor} strokeWidth="2" />
-
-                      {/* Name & Area Badge */}
-                      <g transform="translate(14, -6)">
-                        <rect rx="4" ry="4" x="0" y="-10" width={spill.name.length * 5.8 + 52} height="20" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" filter="url(#landDropShadow)" />
-                        <text x="8" y="4" fill="#0b1e36" fontSize="9" fontWeight="700">
-                          {spill.name} ({spill.area} km²)
-                        </text>
-                      </g>
-                    </g>
-                  );
-                })}
-              </g>
-            </svg>
-
-            {/* Sleek Map Legend Card (Top-Right) */}
-            <div style={{
-              position: 'absolute', top: '14px', right: '14px', zIndex: 10,
-              background: 'rgba(255, 255, 255, 0.94)', backdropFilter: 'blur(8px)',
-              padding: '12px 16px', borderRadius: '12px', border: '1px solid #bfdbfe',
-              boxShadow: '0 4px 16px rgba(11, 30, 54, 0.08)', fontSize: '0.74rem', color: '#1e293b',
-              display: 'flex', flexDirection: 'column', gap: '6px'
-            }}>
-              <div style={{ fontWeight: 800, color: '#0b1e36', marginBottom: '2px' }}>Cartographic Legend</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#ef4444', border: '2px solid #ffffff' }} />
-                <span>Critical Oil Spill (Coral Threat)</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#f97316', border: '2px solid #ffffff' }} />
-                <span>High Severity Oil Slick</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '14px', height: '2px', background: '#0284c7' }} />
-                <span>CMEMS Surface Ocean Current Flow</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '14px', height: '2px', borderTop: '2px dashed #0284c7' }} />
-                <span>India Sovereign 200 nm EEZ Limit</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#059669' }} />
-                <span>Allen Coral Atlas Marine Sanctuary</span>
-              </div>
-            </div>
-
-            {/* Floating Selected Incident Inspection Popover (Bottom-Left) */}
+            {/* Incident Popup — compact card below map */}
+            {/* Incident Popup — compact card with exact coordinates and environmental intelligence */}
             {selectedIncident && (
               <div style={{
-                position: 'absolute', bottom: '16px', left: '16px', zIndex: 10,
-                background: '#ffffff', borderRadius: '14px', padding: '16px 20px',
-                border: '1px solid #bfdbfe', maxWidth: '440px',
-                boxShadow: '0 8px 30px rgba(11, 30, 54, 0.12)', color: '#0b1e36'
+                position: 'absolute', bottom: 14, left: 14, zIndex: 20,
+                background: 'rgba(10, 25, 47, 0.96)', backdropFilter: 'blur(12px)',
+                padding: '14px 18px', borderRadius: 12, maxWidth: 360,
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
+                color: '#e2e8f0', fontSize: '0.8rem'
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '1.2rem' }}>
-                      {selectedIncident.overlaps_coral ? '🪸' : '🛰️'}
-                    </span>
-                    <span style={{ fontWeight: 800, fontSize: '1.0rem', color: '#0b1e36' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      background: selectedIncident.priority === 'critical' ? '#dc2626' : (selectedIncident.severity === 'Protected MPA' ? '#059669' : '#0284c7')
+                    }} />
+                    <span style={{ fontWeight: 800, fontSize: '0.88rem', color: '#fff' }}>
                       {selectedIncident.spill_name}
                     </span>
                   </div>
-                  <button
-                    onClick={() => setSelectedIncident(null)}
-                    style={{ background: 'none', border: 'none', fontSize: '1.1rem', cursor: 'pointer', color: '#94a3b8', padding: '2px 6px' }}
-                    title="Close"
-                  >×</button>
+                  <button onClick={() => setSelectedIncident(null)} style={{
+                    background: 'rgba(255,255,255,0.1)', border: 'none', fontSize: '1rem',
+                    cursor: 'pointer', color: '#94a3b8', padding: '2px 8px', borderRadius: 6
+                  }}>×</button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#f8fbfe', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '10px', fontSize: '0.78rem' }}>
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
+                  background: 'rgba(255,255,255,0.04)', padding: '8px 10px', borderRadius: 8, marginBottom: 8
+                }}>
                   <div>
-                    <span style={{ color: '#64748b' }}>Slick Surface Area:</span>
-                    <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0b1e36', marginTop: '2px' }}>
-                      {selectedIncident.affected_area_sq_km} km²
+                    <div style={{ color: '#94a3b8', fontSize: '0.68rem', textTransform: 'uppercase', fontWeight: 600 }}>Exact Lat/Lon</div>
+                    <div style={{ fontWeight: 800, color: '#38bdf8', fontSize: '0.74rem' }}>
+                      {typeof selectedIncident.centroid_lat === 'number'
+                        ? `${selectedIncident.centroid_lat.toFixed(3)}°N, ${selectedIncident.centroid_lon.toFixed(3)}°E`
+                        : `${selectedIncident.centroid_lat}, ${selectedIncident.centroid_lon}`}
                     </div>
                   </div>
                   <div>
-                    <span style={{ color: '#64748b' }}>Proximity to Shore:</span>
-                    <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0b1e36', marginTop: '2px' }}>
-                      {selectedIncident.coast_proximity_km}
+                    <div style={{ color: '#94a3b8', fontSize: '0.68rem', textTransform: 'uppercase', fontWeight: 600 }}>Area / Scope</div>
+                    <div style={{ fontWeight: 800, color: '#fff', fontSize: '0.74rem' }}>
+                      {selectedIncident.affected_area_sq_km ? `${selectedIncident.affected_area_sq_km}${typeof selectedIncident.affected_area_sq_km === 'number' ? ' km²' : ''}` : 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#94a3b8', fontSize: '0.68rem', textTransform: 'uppercase', fontWeight: 600 }}>Proximity</div>
+                    <div style={{ fontWeight: 800, color: '#cbd5e1', fontSize: '0.74rem' }}>
+                      {selectedIncident.coast_proximity_km || selectedIncident.nearest_mpa_distance_km || 'Coast'}
                     </div>
                   </div>
                 </div>
 
                 <div style={{
-                  fontSize: '0.76rem', lineHeight: '1.5', padding: '8px 12px', borderRadius: '8px',
-                  background: selectedIncident.overlaps_coral ? '#fef3c7' : '#e0f2fe',
-                  color: selectedIncident.overlaps_coral ? '#92400e' : '#0369a1',
-                  border: `1px solid ${selectedIncident.overlaps_coral ? '#fde68a' : '#bae6fd'}`,
-                  fontWeight: 600
+                  fontSize: '0.72rem', padding: '6px 10px', borderRadius: 6, lineHeight: 1.4,
+                  background: selectedIncident.overlaps_coral ? 'rgba(220,38,38,0.15)' : 'rgba(14,165,233,0.12)',
+                  color: selectedIncident.overlaps_coral ? '#fca5a5' : '#bae6fd',
+                  border: `1px solid ${selectedIncident.overlaps_coral ? 'rgba(220,38,38,0.3)' : 'rgba(14,165,233,0.25)'}`
                 }}>
-                  {selectedIncident.overlaps_coral ? (
-                    <span>⚠️ Critical Threat: Intersecting living polyp colonies of <strong>{selectedIncident.nearest_mpa_name}</strong>. Zero-dispersant protocol enforced.</span>
-                  ) : (
-                    <span>🌊 Offshore EEZ Passage: Hydrodynamic drift vectors actively monitored. Coastal protection booms on standby.</span>
-                  )}
+                  {selectedIncident.vulnerability_details || (selectedIncident.overlaps_coral
+                    ? `Coral threat zone: ${selectedIncident.nearest_mpa_name}`
+                    : 'Offshore EEZ sector — continuous drift monitoring active')}
                 </div>
               </div>
             )}
           </div>
+
+
+
+          {/* Legend — horizontal bar below the map, high contrast and clean */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
+            padding: '12px 20px', marginTop: 10,
+            background: '#ffffff', borderRadius: 12,
+            border: '1px solid #cbd5e1', fontSize: '0.8rem', color: '#1e293b',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+          }}>
+            <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.74rem', letterSpacing: '0.6px', textTransform: 'uppercase' }}>
+              Map Layers:
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
+              <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#dc2626', border: '2px solid #fff', boxShadow: '0 0 0 1px #dc2626', display: 'inline-block' }} />
+              Critical Spill
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
+              <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#ea580c', border: '2px solid #fff', boxShadow: '0 0 0 1px #ea580c', display: 'inline-block' }} />
+              High Severity
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
+              <span style={{ width: 18, height: 0, borderTop: '2.5px dashed #0d9488', display: 'inline-block' }} />
+              CMEMS Current
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
+              <span style={{ width: 18, height: 0, borderTop: '2.5px dashed #1d4ed8', display: 'inline-block' }} />
+              200 nm EEZ
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#059669', border: '2px solid #fff', display: 'inline-block', boxShadow: '0 0 0 1px #059669' }} />
+              Sanctuary
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#1e40af', border: '2px solid #fff', display: 'inline-block', boxShadow: '0 0 0 1px #1e40af' }} />
+              Port
+            </span>
+          </div>
         </section>
 
-        {/* Section: Fragile Coastal Ecosystems in Focus */}
-        <section id="habitats" style={{ marginBottom: '50px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-            <span style={{
-              background: '#0b1e36', color: '#ffffff', padding: '4px 12px',
-              borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              HABITATS IN PERIL
-            </span>
-            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0b1e36', marginTop: '8px' }}>
-              Fragile Coastal Ecosystems Under Protection
-            </h2>
-            <p style={{ color: '#475569', fontSize: '0.92rem', maxWidth: '640px', margin: '4px auto 0' }}>
+        {/* ── Marine Habitats ── */}
+        <section id="habitats" style={{ marginBottom: 60 }}>
+          <div className="section-header">
+            <div className="section-tag">HABITATS IN PERIL</div>
+            <h2 className="section-title">Fragile Coastal Ecosystems Under Protection</h2>
+            <p className="section-desc">
               Different coastal environments suffer distinct, compounding injuries when subjected to hydrocarbon spills.
               Select an ecosystem below to inspect its biological mechanisms.
             </p>
           </div>
 
-          {/* Interactive Ecosystem Tab Buttons */}
-          <div style={{
-            display: 'flex', justifyContent: 'center', gap: '10px',
-            marginBottom: '20px', flexWrap: 'wrap'
-          }}>
-            {[
-              { id: 'coral', label: '🪸 Coral Reef Sanctuaries' },
-              { id: 'turtles', label: '🐢 Sea Turtles & Marine Fauna' },
-              { id: 'mangroves', label: '🌿 Mangroves & Blue Carbon' },
-              { id: 'fisherfolk', label: '🎣 Fisherfolk Communities' },
-            ].map(tab => (
+          <div className="eco-tabs">
+            {Object.keys(ecosystems).map(tabId => (
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: '10px',
-                  fontSize: '0.88rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  border: '1px solid',
-                  transition: 'all 0.2s ease',
-                  backgroundColor: activeTab === tab.id ? '#0b1e36' : '#e0f2fe',
-                  color: activeTab === tab.id ? '#ffffff' : '#0b1e36',
-                  borderColor: activeTab === tab.id ? '#0b1e36' : '#bfdbfe',
-                  boxShadow: activeTab === tab.id ? '0 4px 12px rgba(11, 30, 54, 0.18)' : 'none'
-                }}
+                key={tabId}
+                onClick={() => setActiveTab(tabId)}
+                className={`eco-tab ${activeTab === tabId ? 'active' : ''}`}
               >
-                {tab.label}
+                {ecoTabLabels[tabId]}
               </button>
             ))}
           </div>
 
-          {/* Active Ecosystem Card */}
           {ecosystems[activeTab] && (
-            <div style={{
-              background: '#ffffff', borderRadius: '18px', padding: '32px',
-              border: '1px solid #bfdbfe', boxShadow: '0 6px 24px rgba(11, 30, 54, 0.05)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{
-                    fontSize: '2rem', display: 'inline-flex', alignItems: 'center',
-                    justifyContent: 'center', width: '52px', height: '52px',
-                    borderRadius: '12px', background: '#f0f7ff'
-                  }}>
-                    {ecosystems[activeTab].icon}
-                  </span>
-                  <div>
-                    <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0b1e36', margin: 0 }}>
-                      {ecosystems[activeTab].title}
-                    </h3>
-                    <p style={{ fontSize: '0.85rem', color: '#2563eb', fontWeight: 600, margin: '2px 0 0 0' }}>
-                      {ecosystems[activeTab].summary}
-                    </p>
+            <div className="eco-card" key={activeTab}>
+              <div className="eco-card-grid">
+                {/* Left: Authentic Documentary Photo */}
+                <div className="eco-photo-box">
+                  <img
+                    src={ecosystems[activeTab].image}
+                    alt={ecosystems[activeTab].title}
+                    className="eco-photo-img"
+                  />
+                  <div className="eco-photo-meta">
+                    <span className="eco-photo-tag">ECOLOGICAL FIELD SURVEY</span>
+                    <span className="eco-photo-caption">{ecosystems[activeTab].imageCaption}</span>
                   </div>
                 </div>
-                <span style={{
-                  background: '#fef3c7', color: '#92400e', padding: '6px 14px',
-                  borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 700, border: '1px solid #fde68a'
-                }}>
-                  {ecosystems[activeTab].badge}
-                </span>
-              </div>
 
-              <p style={{ fontSize: '0.94rem', color: '#334155', lineHeight: '1.7', marginBottom: '22px' }}>
-                {ecosystems[activeTab].description}
-              </p>
+                {/* Right: Biological Impacts & Action Protocol */}
+                <div className="eco-info-box">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginBottom: 16 }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#1a2b3c', margin: 0 }}>
+                        {ecosystems[activeTab].title}
+                      </h3>
+                      <p style={{ fontSize: '0.84rem', color: '#4a6274', fontWeight: 500, margin: '4px 0 0 0' }}>
+                        {ecosystems[activeTab].summary}
+                      </p>
+                    </div>
+                    <span className="eco-badge">{ecosystems[activeTab].badge}</span>
+                  </div>
 
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                gap: '16px', background: '#f8fbfe', padding: '20px', borderRadius: '12px',
-                border: '1px solid #dbeafe', marginBottom: '20px'
-              }}>
-                <div>
-                  <h4 style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0b1e36', marginBottom: '10px' }}>
-                    ⚠️ Primary Vulnerabilities & Threats:
-                  </h4>
-                  <ul style={{ paddingLeft: '20px', margin: 0, fontSize: '0.82rem', color: '#475569', lineHeight: '1.6' }}>
-                    {ecosystems[activeTab].keyThreats.map((threat, idx) => (
-                      <li key={idx} style={{ marginBottom: '4px' }}>{threat}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div style={{ borderLeft: '1px solid #dbeafe', paddingLeft: '16px' }}>
-                  <h4 style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0b1e36', marginBottom: '8px' }}>
-                    🛡️ Official Environmental Protocol:
-                  </h4>
-                  <p style={{ fontSize: '0.82rem', color: '#334155', lineHeight: '1.5' }}>
-                    {ecosystems[activeTab].protectionAction}
+                  <p style={{ fontSize: '0.9rem', color: '#4a6274', lineHeight: 1.68, marginBottom: 18 }}>
+                    {ecosystems[activeTab].description}
                   </p>
-                  <div style={{ marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#2563eb', fontWeight: 600 }}>
-                    <span>National Oil Spill Disaster Contingency Plan (NOS-DCP) Compliant</span>
+
+                  <div className="eco-threats-grid">
+                    <div>
+                      <h4>
+                        <AlertTriangleIcon size={16} color="#ef4444" />
+                        Primary Vulnerabilities & Threats
+                      </h4>
+                      <ul>
+                        {ecosystems[activeTab].keyThreats.map((threat, idx) => (
+                          <li key={idx}>{threat}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="eco-protocol">
+                      <h4>
+                        <ShieldIcon size={16} color="#5BA4C9" />
+                        Emergency Response Protocol
+                      </h4>
+                      <p>{ecosystems[activeTab].protectionAction}</p>
+                      <div className="eco-compliance">
+                        <CheckCircleIcon size={14} />
+                        NOS-DCP Statutory Protocol Compliant
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1047,297 +1158,401 @@ export default function PublicLanding() {
           )}
         </section>
 
-        {/* Section: Spill Science - How Oil Affects Marine Life */}
-        <section id="impact" style={{ marginBottom: '50px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-            <span style={{
-              background: '#0b1e36', color: '#ffffff', padding: '4px 12px',
-              borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              ECOLOGICAL MECHANISMS
-            </span>
-            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0b1e36', marginTop: '8px' }}>
-              The Anatomy of an Oil Spill: Three Layers of Impact
+        {/* ── Statutory Ecological Sensitivity & Marine Indicator Registry ── */}
+        <section id="sanctuary-diorama" className="sanctuary-diorama-section">
+          {/* Section Header */}
+          <div className="section-header" style={{ textAlign: 'center', marginBottom: 28 }}>
+            <div className="section-tag" style={{ margin: '0 auto 10px auto' }}>
+              <ShieldIcon size={14} color="#0284c7" />
+              STATUTORY ECOLOGICAL SENSITIVITY REGISTRY
+            </div>
+            <h2 className="section-title" style={{ fontSize: '1.8rem', color: '#0f172a' }}>
+              Marine Bio-Indicators & Vulnerability Registry
             </h2>
-            <p style={{ color: '#475569', fontSize: '0.92rem', maxWidth: '640px', margin: '4px auto 0' }}>
+            <p className="section-desc" style={{ maxWidth: 760, margin: '0 auto' }}>
+              Standardized classification of 6 primary indicator categories monitored under the National Oil Spill Disaster Contingency Plan (NOS-DCP) and Section 9 of the Wildlife Protection Act.
+            </p>
+          </div>
+
+          {/* Species Control Bar with View Mode Switcher */}
+          {(() => {
+            const filteredSpecies = marineSpeciesList.filter(s => speciesFilter === 'all' || s.category === speciesFilter);
+            const currentSpecies = filteredSpecies.find(s => s.id === activeSpeciesId) || filteredSpecies[0] || marineSpeciesList[0];
+
+            return (
+              <>
+                <div className="species-filter-bar">
+                  <div className="species-filter-chips">
+                    {[
+                      { key: 'all', label: 'All Indicators (1–6)' },
+                      { key: 'mammal', label: '1 & 2: Marine Mammals & Reptiles' },
+                      { key: 'reef', label: '3 & 4: Biogenic Corals & Plankton' },
+                      { key: 'benthic', label: '5 & 6: Benthic Invertebrates' },
+                    ].map(chip => (
+                      <button
+                        key={chip.key}
+                        className={`species-chip ${speciesFilter === chip.key ? 'active' : ''}`}
+                        onClick={() => setSpeciesFilter(chip.key)}
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    {/* View Switcher: Interactive Console vs Scientific Matrix Table */}
+                    <div className="species-view-toggle">
+                      <button
+                        className={`view-toggle-pill ${speciesViewMode === 'console' ? 'active' : ''}`}
+                        onClick={() => setSpeciesViewMode('console')}
+                      >
+                        Executive Dossier
+                      </button>
+                      <button
+                        className={`view-toggle-pill ${speciesViewMode === 'table' ? 'active' : ''}`}
+                        onClick={() => setSpeciesViewMode('table')}
+                      >
+                        Scientific Matrix
+                      </button>
+                    </div>
+
+                    <div className="species-count-badge">
+                      <ShieldIcon size={13} color="#0284c7" />
+                      6 Indicators Monitored
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mode 1: Executive Species Dossier Console */}
+                {speciesViewMode === 'console' && (
+                  <div className="species-console-layout">
+                    {/* Left Telemetry Navigation Rail */}
+                    <div className="species-nav-rail">
+                      <div className="nav-rail-header">
+                        <span className="rail-title">Indicator Roster</span>
+                        <span className="rail-count">{filteredSpecies.length} Tracked</span>
+                      </div>
+                      <div className="species-nav-list">
+                        {filteredSpecies.map(sp => {
+                          const isActive = sp.id === currentSpecies.id;
+                          return (
+                            <button
+                              key={sp.id}
+                              className={`species-nav-card ${isActive ? 'active' : ''}`}
+                              onClick={() => setActiveSpeciesId(sp.id)}
+                            >
+                              <div className="nav-card-num-box">
+                                <span className="nav-card-num">{sp.num}</span>
+                              </div>
+                              <div className="nav-card-info">
+                                <div className="nav-card-header-row">
+                                  <span className="nav-card-code">INDEX 0{sp.num}</span>
+                                  <span className="nav-status-badge">
+                                    {sp.status}
+                                  </span>
+                                </div>
+                                <div className="nav-common-name">{sp.commonName}</div>
+                                <div className="nav-scientific-name">{sp.scientificName}</div>
+                              </div>
+                              <div className="nav-card-arrow">→</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Right Command Intelligence Dossier */}
+                    <div className="species-dossier-panel">
+                      {/* Dossier Top Banner */}
+                      <div className="dossier-banner">
+                        <div className="dossier-header-main">
+                          <div className="dossier-num-tile">
+                            <span className="dossier-num-label">INDEX</span>
+                            <span className="dossier-num-val">0{currentSpecies.num}</span>
+                          </div>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                              <span className="dossier-code-pill">ESI REF: BIO-0{currentSpecies.num}</span>
+                              <span className="dossier-status-pill">
+                                {currentSpecies.status}
+                              </span>
+                              <span className="dossier-class-tag">{currentSpecies.taxonomicClass}</span>
+                            </div>
+                            <h3 className="dossier-title">{currentSpecies.commonName}</h3>
+                            <div className="dossier-binomial">Binomial Taxonomy: <em>{currentSpecies.scientificName}</em></div>
+                          </div>
+                        </div>
+
+                        <div className="dossier-metrics-strip">
+                          <div className="metric-chip">
+                            <span className="metric-lbl">Primary Sanctuary Habitat</span>
+                            <span className="metric-val" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <MapPinIcon size={12} color="#0369a1" />
+                              {currentSpecies.habitat}
+                            </span>
+                          </div>
+                          <div className="metric-chip">
+                            <span className="metric-lbl">Trophic Role</span>
+                            <span className="metric-val">{currentSpecies.trophicRole}</span>
+                          </div>
+                          <div className="metric-chip">
+                            <span className="metric-lbl">Sensitivity Classification</span>
+                            <span className="metric-val">{currentSpecies.sensitivity}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dual Intelligence Columns: Threat vs Safeguard */}
+                      <div className="dossier-dual-columns">
+                        {/* Left: Hydrocarbon Threat Pathology */}
+                        <div className="dossier-column threat-column">
+                          <div className="column-header">
+                            <div className="col-tag threat-tag">
+                              <AlertTriangleIcon size={13} color="#475569" />
+                              Toxicological Pathology & Exposure Risk
+                            </div>
+                            <span className="vector-badge">{currentSpecies.threatVector}</span>
+                          </div>
+
+                          <p className="column-description">{currentSpecies.threat}</p>
+
+                          <div className="pathology-tags-wrap">
+                            <span className="tags-label">Clinical Manifestations:</span>
+                            <div className="tags-cluster">
+                              {currentSpecies.threatTags?.map((tag, i) => (
+                                <span key={i} className="pathology-tag">{tag}</span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right: Statutory NOS-DCP Response Safeguard */}
+                        <div className="dossier-column safeguard-column">
+                          <div className="column-header">
+                            <div className="col-tag safeguard-tag">
+                              <ShieldIcon size={13} color="#475569" />
+                              Mandatory NOS-DCP Tactical Safeguard
+                            </div>
+                            <span className="rule-badge">{currentSpecies.safeguardRule}</span>
+                          </div>
+
+                          <p className="column-description">{currentSpecies.safeguard}</p>
+
+                          <div className="pathology-tags-wrap">
+                            <span className="tags-label">Operational Countermeasures:</span>
+                            <div className="tags-cluster">
+                              {currentSpecies.safeguardTags?.map((tag, i) => (
+                                <span key={i} className="safeguard-tag-pill">{tag}</span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Dossier Bottom Action Bar */}
+                      <div className="dossier-footer">
+                        <div className="dossier-statutory-notice">
+                          <ShieldIcon size={14} color="#0369a1" />
+                          <span>Enforced under Section 9 of the Wildlife Protection Act (1972) and NOS-DCP National Directives.</span>
+                        </div>
+                        <a href="#surveillance-map" className="dossier-map-link">
+                          Locate Sanctuary on Radar Map →
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mode 2: Scientific Matrix Registry Table */}
+                {speciesViewMode === 'table' && (
+                  <div className="species-matrix-container">
+                    <table className="species-matrix-table">
+                      <thead>
+                        <tr>
+                          <th>Indicator Species</th>
+                          <th>Taxonomy / Role</th>
+                          <th>Conservation Status</th>
+                          <th>Core Sanctuary Range</th>
+                          <th>Hydrocarbon Sensitivity Threat</th>
+                          <th>NOS-DCP Response Protocol</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredSpecies.map(sp => (
+                          <tr
+                            key={sp.id}
+                            onClick={() => { setActiveSpeciesId(sp.id); setSpeciesViewMode('console'); }}
+                            style={{ cursor: 'pointer' }}
+                            title="Click to open executive dossier"
+                          >
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div className="matrix-num-pill">{sp.num}</div>
+                                <div>
+                                  <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', letterSpacing: '0.5px', marginBottom: 2 }}>INDEX 0{sp.num}</div>
+                                  <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.86rem' }}>{sp.commonName}</div>
+                                  <div style={{ fontStyle: 'italic', fontSize: '0.74rem', color: '#64748b' }}>{sp.scientificName}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 700, fontSize: '0.8rem', color: '#334155' }}>{sp.taxonomicClass}</div>
+                              <div style={{ fontSize: '0.72rem', color: '#64748b' }}>{sp.trophicRole}</div>
+                            </td>
+                            <td>
+                              <span className="dossier-status-pill">
+                                {sp.status}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ fontSize: '0.78rem', color: '#0369a1', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <MapPinIcon size={12} color="#0369a1" />
+                                {sp.habitat}
+                              </div>
+                            </td>
+                            <td style={{ maxWidth: 260 }}>
+                              <div style={{ fontSize: '0.76rem', color: '#334155', lineHeight: 1.45, background: '#f8fafc', padding: '8px 12px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                                {sp.threat}
+                              </div>
+                            </td>
+                            <td style={{ maxWidth: 260 }}>
+                              <div style={{ fontSize: '0.76rem', color: '#334155', lineHeight: 1.45, background: '#f8fafc', padding: '8px 12px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                                {sp.safeguard}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </section>
+
+        {/* ── Spill Science ── */}
+        <section id="impact" style={{ marginBottom: 60 }}>
+          <div className="section-header">
+            <div className="section-tag">ECOLOGICAL MECHANISMS</div>
+            <h2 className="section-title">The Anatomy of an Oil Spill: Three Layers of Impact</h2>
+            <p className="section-desc">
               Spilled petroleum does not stay on the surface; it undergoes weathering, emulsification,
               and sedimentation, impacting every marine stratum.
             </p>
           </div>
 
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(310px, 1fr))',
-            gap: '20px'
-          }}>
-            {/* Layer 1 */}
-            <div style={{
-              background: '#ffffff', borderRadius: '16px', padding: '24px',
-              border: '1px solid #bfdbfe', boxShadow: '0 4px 16px rgba(11, 30, 54, 0.04)'
-            }}>
-              <div style={{
-                display: 'inline-block', background: '#dbeafe', color: '#0b1e36',
-                padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, marginBottom: '12px'
-              }}>
-                STRATUM 1: SEA SURFACE
-              </div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0b1e36', marginBottom: '8px' }}>
-                ☀️ Atmospheric & Surface Blockade
-              </h3>
-              <p style={{ fontSize: '0.84rem', color: '#475569', lineHeight: '1.6' }}>
+          <div className="impact-grid">
+            <div className="impact-card">
+              <div className="impact-stratum">STRATUM 1: SEA SURFACE</div>
+              <h3>Atmospheric & Surface Blockade</h3>
+              <p>
                 A thin film of oil creates an impenetrable barrier at the air-water boundary.
                 It blocks sunlight required by phytoplankton, which generate more than half of the planet's oxygen.
                 Marine birds that dive into slicks lose the water-repellent insulation of their plumage, leading to hypothermia,
                 while surfacing dolphins inhale volatile aromatic hydrocarbons that trigger pulmonary edema.
               </p>
-              <div style={{ marginTop: '14px', padding: '10px', background: '#f8fbfe', borderRadius: '8px', fontSize: '0.75rem', color: '#64748b' }}>
+              <div className="impact-victims">
                 <strong>Key victim species:</strong> Terns, pelicans, surfacing sea turtles, dolphin pods.
               </div>
             </div>
 
-            {/* Layer 2 */}
-            <div style={{
-              background: '#ffffff', borderRadius: '16px', padding: '24px',
-              border: '1px solid #bfdbfe', boxShadow: '0 4px 16px rgba(11, 30, 54, 0.04)'
-            }}>
-              <div style={{
-                display: 'inline-block', background: '#dbeafe', color: '#0b1e36',
-                padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, marginBottom: '12px'
-              }}>
-                STRATUM 2: WATER COLUMN
-              </div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0b1e36', marginBottom: '8px' }}>
-                🧪 Dispersion & Bioaccumulation
-              </h3>
-              <p style={{ fontSize: '0.84rem', color: '#475569', lineHeight: '1.6' }}>
+            <div className="impact-card">
+              <div className="impact-stratum">STRATUM 2: WATER COLUMN</div>
+              <h3>Dispersion & Bioaccumulation</h3>
+              <p>
                 As ocean wave energy breaks the slick into droplets, toxic Polycyclic Aromatic Hydrocarbons (PAHs) dissolve
                 into the water column. Microscopic zooplankton and fish larvae ingest these micro-droplets, experiencing high mortality.
                 Toxic residues bioaccumulate in filter feeders like oysters and clams, magnifying in concentration as they travel up
                 the food web to mackerel, kingfish, and human consumers.
               </p>
-              <div style={{ marginTop: '14px', padding: '10px', background: '#f8fbfe', borderRadius: '8px', fontSize: '0.75rem', color: '#64748b' }}>
+              <div className="impact-victims">
                 <strong>Key victim species:</strong> Fish fry, pelagic shoals, bivalves, zooplankton.
               </div>
             </div>
 
-            {/* Layer 3 */}
-            <div style={{
-              background: '#ffffff', borderRadius: '16px', padding: '24px',
-              border: '1px solid #bfdbfe', boxShadow: '0 4px 16px rgba(11, 30, 54, 0.04)'
-            }}>
-              <div style={{
-                display: 'inline-block', background: '#dbeafe', color: '#0b1e36',
-                padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800, marginBottom: '12px'
-              }}>
-                STRATUM 3: SEABED & SHORELINE
-              </div>
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0b1e36', marginBottom: '8px' }}>
-                🌊 Benthic & Sediment Smothering
-              </h3>
-              <p style={{ fontSize: '0.84rem', color: '#475569', lineHeight: '1.6' }}>
+            <div className="impact-card">
+              <div className="impact-stratum">STRATUM 3: SEABED & SHORELINE</div>
+              <h3>Benthic & Sediment Smothering</h3>
+              <p>
                 Heavier crude fractions, known as asphaltenes, bind with suspended sediment and sink onto the ocean floor.
                 They smother coral heads, destroy subtidal seagrass meadows where dugongs graze, and coat intertidal sandy beaches.
                 Because oxygen levels beneath buried sediment are minimal, heavy tar can persist for decades, continuously leaching
                 toxins into intertidal crab burrows and turtle nesting pits.
               </p>
-              <div style={{ marginTop: '14px', padding: '10px', background: '#f8fbfe', borderRadius: '8px', fontSize: '0.75rem', color: '#64748b' }}>
+              <div className="impact-victims">
                 <strong>Key victim species:</strong> Coral polyps, seagrass beds, benthic crabs, intertidal snails.
               </div>
             </div>
           </div>
         </section>
 
-        {/* Section: Sanctuaries at Risk Showcase */}
-        <section id="sanctuaries" style={{ marginBottom: '50px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-            <span style={{
-              background: '#0b1e36', color: '#ffffff', padding: '4px 12px',
-              borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              PROTECTED MARINE ASSETS
-            </span>
-            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0b1e36', marginTop: '8px' }}>
-              Key Marine Protected Areas (MPAs) of India
-            </h2>
-            <p style={{ color: '#475569', fontSize: '0.92rem', maxWidth: '640px', margin: '4px auto 0' }}>
+        {/* ── Sanctuaries ── */}
+        <section id="sanctuaries" style={{ marginBottom: 60 }}>
+          <div className="section-header">
+            <div className="section-tag">PROTECTED MARINE ASSETS</div>
+            <h2 className="section-title">Key Marine Protected Areas of India</h2>
+            <p className="section-desc">
               These coastal reserves preserve genetic diversity, buffer communities against storm surges,
               and represent priceless ecological heritage.
             </p>
           </div>
 
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))',
-            gap: '18px'
-          }}>
+          <div className="sanctuary-grid">
             {sanctuaries.map((sanctuary, idx) => (
-              <div
-                key={idx}
-                style={{
-                  background: '#ffffff', borderRadius: '16px', padding: '22px',
-                  border: '1px solid #bfdbfe', display: 'flex', flexDirection: 'column',
-                  justifyContent: 'space-between', boxShadow: '0 4px 16px rgba(11, 30, 54, 0.04)'
-                }}
-              >
+              <div key={idx} className="sanctuary-card">
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '1.8rem' }}>{sanctuary.icon}</span>
-                    <span style={{
-                      fontSize: '0.7rem', fontWeight: 800, color: '#0b1e36',
-                      background: '#e0f2fe', padding: '3px 10px', borderRadius: '9999px'
-                    }}>
-                      {sanctuary.state}
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span className="sanctuary-state-tag">{sanctuary.state}</span>
                   </div>
-
-                  <h3 style={{ fontSize: '1.08rem', fontWeight: 800, color: '#0b1e36', marginBottom: '4px' }}>
-                    {sanctuary.name}
-                  </h3>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563eb', marginBottom: '10px' }}>
-                    ★ {sanctuary.highlight}
-                  </div>
-                  <p style={{ fontSize: '0.82rem', color: '#475569', lineHeight: '1.5' }}>
-                    {sanctuary.desc}
-                  </p>
+                  <h3>{sanctuary.name}</h3>
+                  <div className="sanctuary-highlight">★ {sanctuary.highlight}</div>
+                  <p>{sanctuary.desc}</p>
                 </div>
-
-                <div style={{
-                  marginTop: '16px', paddingTop: '12px', borderTop: '1px dashed #dbeafe',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                }}>
-                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Environmental Tier:</span>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0b1e36' }}>
-                    {sanctuary.priority}
-                  </span>
+                <div className="sanctuary-footer">
+                  <span className="tier-label">Environmental Tier:</span>
+                  <span className="tier-value">{sanctuary.priority}</span>
                 </div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Section: Citizen Action & Reporting Guide */}
-        <section id="report" style={{
-          background: '#ffffff', borderRadius: '20px', padding: '36px',
-          border: '1px solid #bfdbfe', boxShadow: '0 6px 28px rgba(11, 30, 54, 0.06)',
-          marginBottom: '50px'
-        }}>
-          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-            <span style={{
-              background: '#0b1e36', color: '#ffffff', padding: '4px 12px',
-              borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              PUBLIC DEFENSE PROTOCOL
-            </span>
-            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0b1e36', marginTop: '8px' }}>
-              Citizen Action: What To Do If You Spot Marine Pollution
-            </h2>
-            <p style={{ color: '#475569', fontSize: '0.92rem', maxWidth: '680px', margin: '4px auto 0' }}>
+        {/* ── Reporting Guide ── */}
+        <section id="report" className="report-section">
+          <div className="section-header">
+            <div className="section-tag">PUBLIC DEFENSE PROTOCOL</div>
+            <h2 className="section-title">What To Do If You Spot Marine Pollution</h2>
+            <p className="section-desc">
               Coastal tourists, morning beach walkers, and artisanal fisherfolk are often the first to detect offshore slicks.
               Follow this verified protocol to alert authorities safely.
             </p>
           </div>
 
-          <div style={{
-            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: '16px', marginBottom: '30px'
-          }}>
-            {/* Step 1 */}
-            <div style={{
-              background: '#f8fbfe', borderRadius: '12px', padding: '20px',
-              border: '1px solid #dbeafe'
-            }}>
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: '32px', height: '32px', borderRadius: '50%', background: '#0b1e36',
-                color: '#ffffff', fontWeight: 800, fontSize: '0.85rem', marginBottom: '10px'
-              }}>
-                1
+          <div className="report-steps">
+            {[
+              { num: 1, title: 'Spot & Identify', desc: 'Recognize signs: iridescent rainbow sheen on water, black emulsified sludge, pungent diesel or tar odors, or sticky tarballs deposited at the high-tide line.' },
+              { num: 2, title: 'Safety & Distance', desc: 'Never touch tarballs or breathe concentrated fumes directly. Keep children and domestic pets out of contaminated surf. Hydrocarbon vapors contain carcinogenic volatile benzenes.' },
+              { num: 3, title: 'Call Toll-Free 1554', desc: 'Dial the Indian Coast Guard 24/7 Maritime Pollution Hotline at 1554 or notify the nearest Marine Police station and Port Authority office immediately.' },
+              { num: 4, title: 'Record Details', desc: 'Provide exact landmark or smartphone GPS coordinates, time observed, estimated shoreline length affected, and photograph the slick from a safe elevation.' },
+            ].map(step => (
+              <div key={step.num} className="report-step">
+                <div className="step-number">{step.num}</div>
+                <h3>{step.title}</h3>
+                <p>{step.desc}</p>
               </div>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0b1e36', marginBottom: '6px' }}>
-                🔍 Spot & Identify
-              </h3>
-              <p style={{ fontSize: '0.8rem', color: '#475569', lineHeight: '1.5' }}>
-                Recognize signs: iridescent rainbow sheen on water, black emulsified sludge, pungent diesel or tar odors,
-                or sticky tarballs deposited at the high-tide line.
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div style={{
-              background: '#f8fbfe', borderRadius: '12px', padding: '20px',
-              border: '1px solid #dbeafe'
-            }}>
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: '32px', height: '32px', borderRadius: '50%', background: '#0b1e36',
-                color: '#ffffff', fontWeight: 800, fontSize: '0.85rem', marginBottom: '10px'
-              }}>
-                2
-              </div>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0b1e36', marginBottom: '6px' }}>
-                🛑 Safety & Distance
-              </h3>
-              <p style={{ fontSize: '0.8rem', color: '#475569', lineHeight: '1.5' }}>
-                Never touch tarballs or breathe concentrated fumes directly. Keep children and domestic pets out of
-                contaminated surf. Hydrocarbon vapors contain carcinogenic volatile benzenes.
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div style={{
-              background: '#f8fbfe', borderRadius: '12px', padding: '20px',
-              border: '1px solid #dbeafe'
-            }}>
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: '32px', height: '32px', borderRadius: '50%', background: '#0b1e36',
-                color: '#ffffff', fontWeight: 800, fontSize: '0.85rem', marginBottom: '10px'
-              }}>
-                3
-              </div>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0b1e36', marginBottom: '6px' }}>
-                📞 Call Toll-Free 1554
-              </h3>
-              <p style={{ fontSize: '0.8rem', color: '#475569', lineHeight: '1.5' }}>
-                Dial the Indian Coast Guard 24/7 Maritime Pollution Hotline at <strong>1554</strong> or notify the nearest
-                Marine Police station and Port Authority office immediately.
-              </p>
-            </div>
-
-            {/* Step 4 */}
-            <div style={{
-              background: '#f8fbfe', borderRadius: '12px', padding: '20px',
-              border: '1px solid #dbeafe'
-            }}>
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: '32px', height: '32px', borderRadius: '50%', background: '#0b1e36',
-                color: '#ffffff', fontWeight: 800, fontSize: '0.85rem', marginBottom: '10px'
-              }}>
-                4
-              </div>
-              <h3 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#0b1e36', marginBottom: '6px' }}>
-                📍 Record Details
-              </h3>
-              <p style={{ fontSize: '0.8rem', color: '#475569', lineHeight: '1.5' }}>
-                Provide exact landmark or smartphone GPS coordinates, time observed, estimated shoreline length affected,
-                and photograph the slick from a safe elevation.
-              </p>
-            </div>
+            ))}
           </div>
 
-          {/* Wildlife Warning Callout */}
-          <div style={{
-            background: '#e0f2fe', borderRadius: '12px', padding: '16px 20px',
-            border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap'
-          }}>
-            <span style={{ fontSize: '1.8rem' }}>🕊️</span>
+          <div className="wildlife-warning">
+            <div className="wildlife-warning-icon">
+              <BirdIcon size={24} color="#f87171" />
+            </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0b1e36' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#f87171', marginBottom: 2 }}>
                 Critical Oiled Wildlife Warning
               </div>
-              <div style={{ fontSize: '0.8rem', color: '#334155', marginTop: '2px' }}>
+              <div style={{ fontSize: '0.8rem', color: '#5a7a8f', lineHeight: 1.55 }}>
                 Do NOT attempt to wash oiled seabirds or turtles with household detergent. Untrained washing destroys natural
                 feather waterproofing and leads to fatal shock. Trained marine veterinarian units deploy specialized temperature-controlled
                 stabilization baths.
@@ -1346,97 +1561,55 @@ export default function PublicLanding() {
           </div>
         </section>
 
-        {/* Section: Clean Seas Community Pledge */}
-        <section id="pledge" style={{
-          background: 'linear-gradient(135deg, #dbeafe 0%, #edf6fd 100%)',
-          borderRadius: '20px', padding: '36px', border: '1px solid #bfdbfe',
-          boxShadow: '0 6px 28px rgba(11, 30, 54, 0.05)', marginBottom: '50px'
-        }}>
-          <div style={{ maxWidth: '780px', margin: '0 auto', textAlign: 'center' }}>
-            <span style={{
-              background: '#0b1e36', color: '#ffffff', padding: '4px 12px',
-              borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              COMMUNITY STEWARDSHIP
-            </span>
-
-            <h2 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#0b1e36', marginTop: '10px' }}>
-              Take the Coastal Guardian Clean Seas Pledge
+        {/* ── Pledge ── */}
+        <section id="pledge" className="pledge-section">
+          <div style={{ maxWidth: 780, margin: '0 auto', textAlign: 'center' }}>
+            <div className="section-tag">COMMUNITY STEWARDSHIP</div>
+            <h2 className="section-title" style={{ marginTop: 12 }}>
+              Take the SARVAS Clean Seas Marine Protection Pledge
             </h2>
-
-            <p style={{ color: '#334155', fontSize: '0.92rem', margin: '8px auto 24px', lineHeight: '1.5' }}>
+            <p style={{ color: '#4a6274', fontSize: '0.92rem', margin: '8px auto 28px', lineHeight: 1.6 }}>
               Protecting 7,500+ km of ocean requires vigilant eyes across every fishing village, tourist beach, and harbor.
               Stand together with thousands of coastal protectors across India.
             </p>
 
             {pledgeSigned ? (
-              <div style={{
-                background: '#ffffff', padding: '24px', borderRadius: '16px',
-                border: '2px solid #0b1e36', boxShadow: '0 4px 16px rgba(11, 30, 54, 0.1)'
-              }}>
-                <div style={{ fontSize: '2.2rem', marginBottom: '8px' }}>🎉</div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0b1e36' }}>
-                  Thank you for standing up as a Coastal Guardian!
+              <div className="pledge-success">
+                <CheckCircleIcon size={48} color="#5BA4C9" />
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1a2b3c', marginTop: 12 }}>
+                  Thank you for standing up as a SARVAS Marine Guardian!
                 </h3>
-                <p style={{ fontSize: '0.86rem', color: '#475569', marginTop: '6px' }}>
-                  You have joined <strong>{pledgeCount.toLocaleString()}</strong> citizens committed to defending India's marine flora and fauna.
-                  Share this portal to inspire other ocean lovers.
+                <p style={{ fontSize: '0.86rem', color: '#4a6274', marginTop: 8 }}>
+                  You have joined <strong style={{ color: '#2980b9' }}>{pledgeCount.toLocaleString()}</strong> citizens
+                  committed to defending India's marine flora and fauna.
                 </p>
-                <div style={{ marginTop: '14px', display: 'inline-flex', gap: '8px', fontSize: '0.78rem', color: '#2563eb', fontWeight: 700 }}>
-                  <span>✓ Pledge Badge Registered</span> • <span>National Marine Awareness Initiative</span>
+                <div style={{ marginTop: 16, fontSize: '0.76rem', color: '#1a6fa0', fontWeight: 700 }}>
+                  ✓ Pledge Badge Registered · National Marine Awareness Initiative
                 </div>
               </div>
             ) : (
-              <form onSubmit={handlePledgeSubmit} style={{
-                background: '#ffffff', padding: '24px 28px', borderRadius: '16px',
-                border: '1px solid #bfdbfe', textAlign: 'left', boxShadow: '0 4px 16px rgba(11, 30, 54, 0.05)'
-              }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', color: '#1e293b', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={checkedPledges.report}
-                      onChange={(e) => setCheckedPledges({ ...checkedPledges, report: e.target.checked })}
-                      style={{ width: '18px', height: '18px', accentColor: '#0b1e36' }}
-                    />
+              <form onSubmit={handlePledgeSubmit} className="pledge-form" style={{ textAlign: 'left' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+                  <label className="pledge-checkbox-label">
+                    <input type="checkbox" checked={checkedPledges.report} onChange={(e) => setCheckedPledges({ ...checkedPledges, report: e.target.checked })} />
                     <span>I pledge to immediately report observed ocean slicks, tarballs, or vessel discharge to emergency 1554.</span>
                   </label>
-
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', color: '#1e293b', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={checkedPledges.plastic}
-                      onChange={(e) => setCheckedPledges({ ...checkedPledges, plastic: e.target.checked })}
-                      style={{ width: '18px', height: '18px', accentColor: '#0b1e36' }}
-                    />
+                  <label className="pledge-checkbox-label">
+                    <input type="checkbox" checked={checkedPledges.plastic} onChange={(e) => setCheckedPledges({ ...checkedPledges, plastic: e.target.checked })} />
                     <span>I pledge to eliminate single-use plastics during beach visits to avoid entangling marine wildlife.</span>
                   </label>
-
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.88rem', color: '#1e293b', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={checkedPledges.wildlife}
-                      onChange={(e) => setCheckedPledges({ ...checkedPledges, wildlife: e.target.checked })}
-                      style={{ width: '18px', height: '18px', accentColor: '#0b1e36' }}
-                    />
+                  <label className="pledge-checkbox-label">
+                    <input type="checkbox" checked={checkedPledges.wildlife} onChange={(e) => setCheckedPledges({ ...checkedPledges, wildlife: e.target.checked })} />
                     <span>I pledge to respect Marine Protected Areas, stay on designated paths, and never disturb turtle nesting grounds.</span>
                   </label>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                    Join <strong>{pledgeCount.toLocaleString()}</strong> registered ocean stewards
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+                  <div style={{ fontSize: '0.8rem', color: '#5a7a8f' }}>
+                    Join <strong style={{ color: '#2980b9' }}>{pledgeCount.toLocaleString()}</strong> registered ocean stewards
                   </div>
-                  <button
-                    type="submit"
-                    style={{
-                      background: '#0b1e36', color: '#ffffff', padding: '12px 26px',
-                      borderRadius: '8px', fontWeight: 800, fontSize: '0.9rem',
-                      border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(11, 30, 54, 0.2)'
-                    }}
-                  >
-                    Sign Clean Seas Pledge ✍️
+                  <button type="submit" className="pledge-submit-btn">
+                    Sign Clean Seas Pledge
                   </button>
                 </div>
               </form>
@@ -1444,56 +1617,25 @@ export default function PublicLanding() {
           </div>
         </section>
 
-        {/* Section: Frequently Asked Questions (FAQ) */}
-        <section style={{ marginBottom: '40px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-            <span style={{
-              background: '#0b1e36', color: '#ffffff', padding: '4px 12px',
-              borderRadius: '9999px', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              KNOWLEDGE BASE
-            </span>
-            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0b1e36', marginTop: '8px' }}>
-              Frequently Asked Environmental Questions
-            </h2>
-            <p style={{ color: '#475569', fontSize: '0.92rem', maxWidth: '640px', margin: '4px auto 0' }}>
+        {/* ── FAQ ── */}
+        <section style={{ marginBottom: 40 }}>
+          <div className="section-header">
+            <div className="section-tag">KNOWLEDGE BASE</div>
+            <h2 className="section-title">Frequently Asked Environmental Questions</h2>
+            <p className="section-desc">
               Clear, scientifically grounded answers to common public inquiries on marine disaster response.
             </p>
           </div>
 
-          <div style={{ maxWidth: '880px', margin: '0 auto' }}>
+          <div className="faq-container">
             {faqs.map((faq, idx) => (
-              <div
-                key={idx}
-                style={{
-                  background: '#ffffff', borderRadius: '12px', marginBottom: '12px',
-                  border: '1px solid #bfdbfe', overflow: 'hidden',
-                  boxShadow: '0 2px 8px rgba(11, 30, 54, 0.03)'
-                }}
-              >
-                <button
-                  onClick={() => toggleFaq(idx)}
-                  style={{
-                    width: '100%', padding: '18px 22px', display: 'flex',
-                    justifyContent: 'space-between', alignItems: 'center',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    textAlign: 'left', fontWeight: 700, fontSize: '0.95rem',
-                    color: '#0b1e36'
-                  }}
-                >
+              <div key={idx} className="faq-item">
+                <button onClick={() => toggleFaq(idx)} className="faq-question">
                   <span>{faq.q}</span>
-                  <span style={{ fontSize: '1.2rem', color: '#2563eb', marginLeft: '12px' }}>
-                    {openFaq === idx ? '−' : '+'}
-                  </span>
+                  <span className="faq-toggle">{openFaq === idx ? '−' : '+'}</span>
                 </button>
                 {openFaq === idx && (
-                  <div style={{
-                    padding: '0 22px 18px', fontSize: '0.86rem', color: '#475569',
-                    lineHeight: '1.6', borderTop: '1px dashed #dbeafe', paddingTop: '12px'
-                  }}>
-                    {faq.a}
-                  </div>
+                  <div className="faq-answer">{faq.a}</div>
                 )}
               </div>
             ))}
@@ -1501,55 +1643,48 @@ export default function PublicLanding() {
         </section>
       </main>
 
-      {/* Classic Environmental Awareness Footer */}
-      <footer style={{
-        background: '#e0f2fe', borderTop: '1px solid #bfdbfe',
-        padding: '36px 32px 24px', color: '#334155', fontSize: '0.82rem',
-        textAlign: 'center'
-      }}>
-        <div style={{ maxWidth: '960px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <span style={{ fontSize: '1.4rem' }}>🌊</span>
-            <span style={{ fontWeight: 800, color: '#0b1e36', fontSize: '0.98rem', letterSpacing: '0.5px' }}>
-              INDIAN OCEAN COASTAL GUARDIAN INITIATIVE
-            </span>
+      {/* ────────── Footer ────────── */}
+      <footer className="page-footer">
+        <div className="footer-inner">
+          <div className="footer-brand">
+            <div className="nav-brand-icon" style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              padding: 0,
+              overflow: 'hidden',
+              background: 'transparent',
+              border: '2px solid rgba(2, 132, 199, 0.4)',
+              flexShrink: 0
+            }}>
+              <img
+                src="/sarvas_logo.png"
+                alt="SARVAS Logo"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </div>
+            <span className="footer-brand-name">SARVAS — FROM SLICK TO SUSPECT</span>
           </div>
 
-          <p style={{ maxWidth: '720px', margin: '0 auto 16px', color: '#475569', lineHeight: '1.6' }}>
+          <p className="footer-description">
             Dedicated to open environmental transparency, public disaster awareness, and the preservation
             of coral reef sanctuaries and artisanal coastal livelihoods. Operating in alignment with the
             National Oil Spill Disaster Contingency Plan (NOS-DCP).
           </p>
 
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '16px',
-            background: '#ffffff', padding: '8px 20px', borderRadius: '30px',
-            border: '1px solid #bfdbfe', marginBottom: '20px', flexWrap: 'wrap', justifyContent: 'center'
-          }}>
-            <span>National Maritime Pollution Emergency: <strong style={{ color: '#0b1e36' }}>1554</strong></span>
-            <span style={{ color: '#bfdbfe' }}>|</span>
-            <span>Wildlife Emergency: <strong style={{ color: '#0b1e36' }}>1800-11-9300</strong></span>
-            <span style={{ color: '#bfdbfe' }}>|</span>
-            <span>Toll-Free Coast Guard Helpline: <strong style={{ color: '#0b1e36' }}>1938</strong></span>
+          <div className="footer-emergency-bar">
+            <span>Maritime Pollution: <strong>1554</strong></span>
+            <span className="footer-divider-sep">|</span>
+            <span>Wildlife Emergency: <strong>1800-11-9300</strong></span>
+            <span className="footer-divider-sep">|</span>
+            <span>Coast Guard Helpline: <strong>1938</strong></span>
           </div>
 
-          <div style={{
-            borderTop: '1px solid #bfdbfe', paddingTop: '16px',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            flexWrap: 'wrap', gap: '10px', fontSize: '0.75rem', color: '#64748b'
-          }}>
+          <div className="footer-bottom">
+            <div>© 2026 Coastal Environmental Transparency & Disaster Support Program. All Rights Reserved.</div>
             <div>
-              © 2026 Coastal Environmental Transparency & Disaster Support Program. All Rights Reserved.
-            </div>
-            <div>
-              For authorized Coast Guard and Maritime Authority officers:
-              <Link
-                to="/login"
-                style={{
-                  marginLeft: '8px', color: '#0b1e36', fontWeight: 700,
-                  textDecoration: 'underline'
-                }}
-              >
+              For authorized officers:
+              <Link to="/login" style={{ marginLeft: 8 }}>
                 Sign in to Operational Command →
               </Link>
             </div>
