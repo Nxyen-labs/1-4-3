@@ -54,6 +54,11 @@ app.include_router(dashboard_router)
 app.include_router(reports_router)
 
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "SARVAS Backend API", "docs": "/docs"}
+
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "service": "oil-spill-detection"}
