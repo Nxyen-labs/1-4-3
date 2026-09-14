@@ -99,11 +99,11 @@ export default function AuthorityDashboard() {
   });
 
   const navItems = [
-    { id: 'overview', icon: '📊', label: 'National Overview', active: activeSection === 'overview', onClick: () => setActiveSection('overview') },
-    { id: 'map', icon: '🗺️', label: 'National Maritime Map', active: activeSection === 'map', onClick: () => setActiveSection('map') },
-    { id: 'reports', icon: '📄', label: 'Spill Reports & PDF', active: activeSection === 'reports', onClick: () => setActiveSection('reports') },
-    { id: 'states', icon: '🏛️', label: 'State/Coast Breakdown', active: activeSection === 'states', onClick: () => setActiveSection('states') },
-    { id: 'trends', icon: '📈', label: 'Trends & Charts', active: activeSection === 'trends', onClick: () => setActiveSection('trends') },
+    { id: 'overview', icon: '', label: 'National Overview', active: activeSection === 'overview', onClick: () => setActiveSection('overview') },
+    { id: 'map', icon: '', label: 'National Maritime Map', active: activeSection === 'map', onClick: () => setActiveSection('map') },
+    { id: 'reports', icon: '', label: 'Spill Reports & PDF', active: activeSection === 'reports', onClick: () => setActiveSection('reports') },
+    { id: 'states', icon: '', label: 'State/Coast Breakdown', active: activeSection === 'states', onClick: () => setActiveSection('states') },
+    { id: 'trends', icon: '', label: 'Trends & Charts', active: activeSection === 'trends', onClick: () => setActiveSection('trends') },
   ];
 
   if (loading) {
@@ -198,7 +198,7 @@ export default function AuthorityDashboard() {
         <div className="card" style={{ marginBottom: '16px' }}>
           <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h3>🗺️ National Maritime Strategic Map — All India EEZ</h3>
+              <h3>National Maritime Strategic Map — All India EEZ</h3>
               <p style={{ fontSize: '0.75rem', color: '#6b9fd4', margin: '2px 0 0 0' }}>
                 Displaying {filteredSpills.length} spill incident{filteredSpills.length === 1 ? '' : 's'} across all Indian maritime zones
               </p>
@@ -249,7 +249,7 @@ export default function AuthorityDashboard() {
           <div className="card" style={{ marginBottom: '16px' }}>
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h3>📄 Official Incident Evidence & Attribution Dossiers</h3>
+                <h3>Official Incident Evidence & Attribution Dossiers</h3>
                 <p style={{ fontSize: '0.75rem', color: '#6b9fd4', margin: '2px 0 0 0' }}>
                   Generate and download comprehensive legal/operational PDF evidence briefs for NTRO and Ministry briefings
                 </p>
@@ -296,7 +296,7 @@ export default function AuthorityDashboard() {
                             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
                             onClick={() => handleDownloadReport(s.id)}
                           >
-                            {downloading ? 'Preparing Dossier...' : '📥 Download PDF'}
+                            {downloading ? 'Preparing Dossier...' : 'Download PDF'}
                           </button>
                         </td>
                       </tr>
@@ -312,7 +312,7 @@ export default function AuthorityDashboard() {
       {activeSection === 'states' && (
 
         <>
-          <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>🗺️ State / Coastal Region Breakdown</h3>
+          <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>State / Coastal Region Breakdown</h3>
           <div className="card">
             <div className="card-body" style={{ padding: 0 }}>
               <table className="data-table">
@@ -368,7 +368,7 @@ export default function AuthorityDashboard() {
 
       {activeSection === 'trends' && (
         <>
-          <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>📈 National Trends</h3>
+          <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>National Trends</h3>
           <div className="grid-2">
             <div className="card">
               <div className="card-header"><h3>Severity Distribution</h3></div>
