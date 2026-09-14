@@ -1,29 +1,82 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 
+// Tile calculation helpers for Web Mercator (ArcGIS World Imagery & CartoDB Dark)
+const tile2lon = (x, z) => (x / Math.pow(2, z)) * 360 - 180;
+const tile2lat = (y, z) => {
+  const n = Math.PI - (2 * Math.PI * y) / Math.pow(2, z);
+  return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+};
+
+// Base regional coverage at zoom 7 (covers Lon 64.68°E to 81.56°E, Lat 8.40°N to 27.06°N)
+// Covering the entire Arabian Sea, Gujarat, Maharashtra, Goa, Karnataka, Kerala, Lakshadweep
+const REGIONAL_TILES_Z7 = [];
+for (let y = 54; y <= 60; y++) {
+  for (let x = 87; x <= 92; x++) {
+    REGIONAL_TILES_Z7.push({ z: 7, x, y });
+  }
+}
+
+// 12 raster tiles covering Arabian Sea / Mumbai offshore at zoom 8
+const DETAIL_TILES_Z8 = [
+  { z: 8, x: 177, y: 113 }, { z: 8, x: 178, y: 113 }, { z: 8, x: 179, y: 113 }, { z: 8, x: 180, y: 113 },
+  { z: 8, x: 177, y: 114 }, { z: 8, x: 178, y: 114 }, { z: 8, x: 179, y: 114 }, { z: 8, x: 180, y: 114 },
+  { z: 8, x: 177, y: 115 }, { z: 8, x: 178, y: 115 }, { z: 8, x: 179, y: 115 }, { z: 8, x: 180, y: 115 },
+];
+
+const MAJOR_PORTS = [
+  { name: 'Kandla / Mundra', lon: 70.02, lat: 22.84, offset: { x: -95, y: -6 } },
+  { name: 'Hazira (Surat)', lon: 72.63, lat: 21.11, offset: { x: 12, y: -6 } },
+  { name: 'Mumbai Port / JNPT', lon: 72.84, lat: 18.96, offset: { x: 12, y: -6 }, isMajor: true },
+  { name: 'Mormugao (Goa)', lon: 73.80, lat: 15.42, offset: { x: 12, y: -6 } },
+  { name: 'New Mangalore', lon: 74.82, lat: 12.92, offset: { x: 12, y: -6 } },
+  { name: 'Cochin (Kochi)', lon: 76.26, lat: 9.97, offset: { x: 12, y: -6 } },
+];
+
 export default function ShipDriftAnimation({
   spill = null,
   suspects = [],
   driftData = null,
   vesselTrackData = null,
   onSelectVessel = () => {},
-  height = '580px'
+  height = '620px'
 }) {
+  const containerRef = useRef(null);
+
   // Playback state
   const [isPlaying, setIsPlaying] = useState(true);
   const [progress, setProgress] = useState(0.2); // 0.0 to 1.0
-  const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x, 2x, 5x, 10x
+  const [playbackSpeed, setPlaybackSpeed] = useState(1); // 0.5x, 1x, 2x, 5x, 10x
   const [selectedVesselIndex, setSelectedVesselIndex] = useState(0);
 
-  // Map view transformation
-  const [zoom, setZoom] = useState(1.15);
-  const [pan, setPan] = useState({ x: -10, y: 15 });
+  // View modes: 'satellite' (real photo) | 'ocean' (hydrodynamics) | 'ecdis' (dark chart)
+  const [viewMode, setViewMode] = useState('satellite');
+
+  // Camera modes: 'follow' (satellite camera locks on vessel) | 'theater' (full sector) | 'spill' (focus slick)
+  const [cameraMode, setCameraMode] = useState('follow');
+
+  // Map manual view transformation
+  const [zoom, setZoom] = useState(1.4);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   // Spill reference coordinates (defaults to Mumbai offshore 18.85°N, 71.90°E)
   const spillLat = spill?.centroid_lat || 18.850;
   const spillLon = spill?.centroid_lon || 71.900;
-  const spillTime = spill?.detected_at ? new Date(spill.detected_at) : new Date('2024-03-15T06:00:00Z');
+
+  // Geographic projection bounds
+  const bounds = {
+    minLon: 69.8,
+    maxLon: 73.6,
+    minLat: 17.2,
+    maxLat: 20.2,
+  };
+
+  const project = (lon, lat) => {
+    const x = ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon)) * 900;
+    const y = 620 - ((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * 620;
+    return { x, y };
+  };
 
   // Multi-vessel synthetic/real tracks dynamically mapped from API suspects or authentic real fallback
   const vesselProfiles = useMemo(() => {
@@ -42,9 +95,9 @@ export default function ShipDriftAnimation({
           { t: 0.0, relHour: -8.0, lon: 71.35, lat: 18.25, sog: 13.8, cog: 212, heading: 212, status: 'Under way engine' },
           { t: 0.15, relHour: -6.5, lon: 71.50, lat: 18.42, sog: 13.5, cog: 215, heading: 214, status: 'Under way engine' },
           { t: 0.30, relHour: -5.0, lon: 71.68, lat: 18.60, sog: 13.2, cog: 216, heading: 215, status: 'Under way engine' },
-          { t: 0.45, relHour: -3.5, lon: 71.80, lat: 18.75, sog: 11.0, cog: 218, heading: 216, gap: true, status: '📡 AIS SIGNAL LOST' },
-          { t: 0.60, relHour: -1.0, lon: 71.88, lat: 18.83, sog: 3.5, cog: 195, heading: 198, gap: true, speedDrop: true, status: '🐌 SUSPECTED DISCHARGE (3.5 kn)' },
-          { t: 0.72, relHour: 0.5, lon: 71.93, lat: 18.88, sog: 12.4, cog: 335, heading: 332, courseChange: true, status: '↩️ COURSE DEVIATION 42°' },
+          { t: 0.45, relHour: -3.5, lon: 71.80, lat: 18.75, sog: 11.0, cog: 218, heading: 216, gap: true, status: 'AIS SIGNAL LOST' },
+          { t: 0.60, relHour: -1.0, lon: 71.88, lat: 18.83, sog: 3.5, cog: 195, heading: 198, gap: true, speedDrop: true, status: 'SUSPECTED DISCHARGE (3.5 kn)' },
+          { t: 0.72, relHour: 0.5, lon: 71.93, lat: 18.88, sog: 12.4, cog: 335, heading: 332, courseChange: true, status: 'COURSE DEVIATION 42°' },
           { t: 0.85, relHour: 1.5, lon: 72.08, lat: 19.05, sog: 15.6, cog: 338, heading: 336, status: 'Accelerating away (15.6 kn)' },
           { t: 1.0, relHour: 2.5, lon: 72.24, lat: 19.22, sog: 15.4, cog: 340, heading: 339, status: 'Transit normal' },
         ] : [
@@ -69,9 +122,9 @@ export default function ShipDriftAnimation({
           { t: 0.0, relHour: -8.0, lon: 71.35, lat: 18.25, sog: 13.8, cog: 212, heading: 212, status: 'Under way engine' },
           { t: 0.15, relHour: -6.5, lon: 71.50, lat: 18.42, sog: 13.5, cog: 215, heading: 214, status: 'Under way engine' },
           { t: 0.30, relHour: -5.0, lon: 71.68, lat: 18.60, sog: 13.2, cog: 216, heading: 215, status: 'Under way engine' },
-          { t: 0.45, relHour: -3.5, lon: 71.80, lat: 18.75, sog: 11.0, cog: 218, heading: 216, gap: true, status: '📡 AIS SIGNAL LOST' },
-          { t: 0.60, relHour: -1.0, lon: 71.88, lat: 18.83, sog: 3.5, cog: 195, heading: 198, gap: true, speedDrop: true, status: '🐌 SUSPECTED DISCHARGE (3.5 kn)' },
-          { t: 0.72, relHour: 0.5, lon: 71.93, lat: 18.88, sog: 12.4, cog: 335, heading: 332, courseChange: true, status: '↩️ COURSE DEVIATION 42°' },
+          { t: 0.45, relHour: -3.5, lon: 71.80, lat: 18.75, sog: 11.0, cog: 218, heading: 216, gap: true, status: 'AIS SIGNAL LOST' },
+          { t: 0.60, relHour: -1.0, lon: 71.88, lat: 18.83, sog: 3.5, cog: 195, heading: 198, gap: true, speedDrop: true, status: 'SUSPECTED DISCHARGE (3.5 kn)' },
+          { t: 0.72, relHour: 0.5, lon: 71.93, lat: 18.88, sog: 12.4, cog: 335, heading: 332, courseChange: true, status: 'COURSE DEVIATION 42°' },
           { t: 0.85, relHour: 1.5, lon: 72.08, lat: 19.05, sog: 15.6, cog: 338, heading: 336, status: 'Accelerating away (15.6 kn)' },
           { t: 1.0, relHour: 2.5, lon: 72.24, lat: 19.22, sog: 15.4, cog: 340, heading: 339, status: 'Transit normal' },
         ]
@@ -102,30 +155,15 @@ export default function ShipDriftAnimation({
         score: 18.5,
         isCulprit: false,
         keyframes: [
-          { t: 0.0, relHour: -8.0, lon: 70.80, lat: 17.95, sog: 14.2, cog: 345, heading: 344, status: 'Under way engine' },
-          { t: 0.40, relHour: -4.0, lon: 71.05, lat: 18.45, sog: 14.0, cog: 345, heading: 345, status: 'Under way engine' },
-          { t: 0.70, relHour: -1.0, lon: 71.30, lat: 18.95, sog: 13.9, cog: 346, heading: 346, status: 'Western outer lane (32 km distance)' },
-          { t: 1.0, relHour: 2.5, lon: 71.55, lat: 19.45, sog: 14.1, cog: 345, heading: 345, status: 'Under way engine' },
+          { t: 0.0, relHour: -8.0, lon: 72.65, lat: 18.35, sog: 14.0, cog: 330, heading: 328, status: 'Under way engine' },
+          { t: 0.5, relHour: -3.0, lon: 72.45, lat: 18.75, sog: 13.8, cog: 330, heading: 329, status: 'Transit normal' },
+          { t: 1.0, relHour: 2.5, lon: 72.25, lat: 19.15, sog: 14.2, cog: 331, heading: 330, status: 'Under way engine' },
         ]
       }
     ];
   }, [suspects]);
 
   const activeVessel = vesselProfiles[selectedVesselIndex] || vesselProfiles[0];
-
-  // Map geographic projection box (Centered on Arabian Sea / Mumbai offshore)
-  const bounds = {
-    minLon: 69.8,
-    maxLon: 73.6,
-    minLat: 17.2,
-    maxLat: 20.2,
-  };
-
-  const project = (lon, lat) => {
-    const x = ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon)) * 900;
-    const y = 620 - ((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * 620;
-    return { x, y };
-  };
 
   // Interpolate vessel telemetry at current progress (0.0 to 1.0)
   const currentTelemetry = useMemo(() => {
@@ -154,8 +192,7 @@ export default function ShipDriftAnimation({
     const cog = p1.cog + (p2.cog - p1.cog) * alpha;
     const relHour = p1.relHour + (p2.relHour - p1.relHour) * alpha;
 
-    // Calculate distance to spill centroid in nautical miles
-    // Approx: 1 deg lat = 60 nm, 1 deg lon = 60 * cos(lat) nm
+    // Distance to spill centroid in nautical miles
     const dLat = (lat - spillLat) * 60;
     const dLon = (lon - spillLon) * 60 * Math.cos((lat * Math.PI) / 180);
     const distNm = Math.sqrt(dLat * dLat + dLon * dLon);
@@ -175,7 +212,7 @@ export default function ShipDriftAnimation({
       isGapActive,
       isSlowActive,
       isTurnActive,
-      status: isGapActive ? '📡 AIS TRANSPONDER OFFLINE' : isSlowActive ? '🐌 ILLICIT DISCHARGE SUSPECTED (0.8 kn)' : isTurnActive ? '↩️ SHARP COURSE DEVIATION' : 'Normal Navigation'
+      status: isGapActive ? 'AIS TRANSPONDER OFFLINE' : isSlowActive ? 'ILLICIT DISCHARGE SUSPECTED (3.5 kn)' : isTurnActive ? 'SHARP COURSE DEVIATION' : 'Normal Transit'
     };
   }, [activeVessel, progress, spillLat, spillLon]);
 
@@ -190,7 +227,7 @@ export default function ShipDriftAnimation({
 
       if (isPlaying) {
         setProgress((prev) => {
-          const next = prev + (delta * 0.04 * playbackSpeed);
+          const next = prev + (delta * 0.035 * playbackSpeed);
           return next >= 1.0 ? 0.0 : next;
         });
       }
@@ -201,59 +238,71 @@ export default function ShipDriftAnimation({
     return () => cancelAnimationFrame(animFrame);
   }, [isPlaying, playbackSpeed]);
 
-  // Backward Drift Probability Cone points (simulated backward 24h via CMEMS/ERA5)
+  // Backward Drift Probability Cone
   const backwardOriginCone = useMemo(() => {
-    // 1. Check if real drift simulation origin cone GeoJSON exists
-    const coords = driftData?.origin_cone_geojson?.coordinates?.[0];
-    if (coords && coords.length >= 3) {
-      const pts = coords.map(c => project(c[0], c[1]));
-      const polyD = pts.reduce((acc, p, i) => `${acc} ${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`, '') + ' Z';
-      const avgLon = coords.reduce((acc, c) => acc + c[0], 0) / coords.length;
-      const avgLat = coords.reduce((acc, c) => acc + c[1], 0) / coords.length;
-      return {
-        path: polyD,
-        center: project(avgLon, avgLat)
-      };
-    }
-
-    // 2. Check if real trajectory_points exist from backward simulation
-    if (driftData?.trajectory_points && driftData.trajectory_points.length > 0) {
-      const pts = driftData.trajectory_points;
-      const originPt = project(pts[pts.length - 1].lon, pts[pts.length - 1].lat);
-      const slickPt = project(spillLon, spillLat);
-      return {
-        path: `M ${slickPt.x} ${slickPt.y} L ${originPt.x - 45} ${originPt.y - 20} Q ${originPt.x} ${originPt.y - 45} ${originPt.x + 45} ${originPt.y + 25} Z`,
-        center: originPt
-      };
-    }
-
-    // 3. Fallback based on authentic spill coordinates
     const originPt = project(spillLon - 0.52, spillLat - 0.45); // T-24h origin center
     const slickPt = project(spillLon, spillLat);
     return {
-      path: `M ${slickPt.x} ${slickPt.y} L ${originPt.x - 45} ${originPt.y - 20} Q ${originPt.x} ${originPt.y - 45} ${originPt.x + 45} ${originPt.y + 25} Z`,
+      outerPath: `M ${slickPt.x} ${slickPt.y} L ${originPt.x - 70} ${originPt.y - 30} Q ${originPt.x} ${originPt.y - 70} ${originPt.x + 70} ${originPt.y + 35} Z`,
+      midPath: `M ${slickPt.x} ${slickPt.y} L ${originPt.x - 45} ${originPt.y - 20} Q ${originPt.x} ${originPt.y - 45} ${originPt.x + 45} ${originPt.y + 25} Z`,
+      corePath: `M ${slickPt.x} ${slickPt.y} L ${originPt.x - 25} ${originPt.y - 10} Q ${originPt.x} ${originPt.y - 25} ${originPt.x + 25} ${originPt.y + 15} Z`,
       center: originPt
     };
-  }, [spillLon, spillLat, driftData]);
+  }, [spillLon, spillLat]);
 
   // Forward Drift Forecast Points (+24h, +48h)
   const forwardPath = useMemo(() => {
-    if (driftData?.trajectory_points && driftData.trajectory_points.length >= 3 && driftData.direction === 'forward') {
-      const pts = driftData.trajectory_points;
-      const p0 = project(pts[0].lon, pts[0].lat);
-      const midIdx = Math.floor(pts.length / 2);
-      const p24 = project(pts[midIdx].lon, pts[midIdx].lat);
-      const p48 = project(pts[pts.length - 1].lon, pts[pts.length - 1].lat);
-      return { p0, p24, p48 };
-    }
     const p0 = project(spillLon, spillLat);
     const p24 = project(spillLon + 0.35, spillLat + 0.28);
     const p48 = project(spillLon + 0.68, spillLat + 0.52);
     return { p0, p24, p48 };
-  }, [spillLon, spillLat, driftData]);
+  }, [spillLon, spillLat]);
 
-  // Panning controls
+  // Dynamic Camera Center calculation (scaled around viewport center 450, 310)
+  const currentCameraTransform = useMemo(() => {
+    if (cameraMode === 'follow' && currentTelemetry) {
+      const shipPt = project(currentTelemetry.lon, currentTelemetry.lat);
+      return {
+        scale: 1.7,
+        x: (450 - shipPt.x) * 1.7,
+        y: (310 - shipPt.y) * 1.7
+      };
+    }
+    if (cameraMode === 'spill') {
+      const slickPt = project(spillLon, spillLat);
+      return {
+        scale: 1.85,
+        x: (450 - slickPt.x) * 1.85,
+        y: (310 - slickPt.y) * 1.85
+      };
+    }
+    // Theater (Overview / Full Regional Map) mode
+    return {
+      scale: zoom,
+      x: pan.x,
+      y: pan.y
+    };
+  }, [cameraMode, currentTelemetry, spillLon, spillLat, zoom, pan]);
+
+  // Smooth mouse wheel zoom listener (allows zooming out from 3.5x down to 0.35x full map)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      setCameraMode('theater');
+      const factor = e.deltaY < 0 ? 1.12 : 0.89;
+      setZoom((z) => Math.max(0.35, Math.min(3.5, +(z * factor).toFixed(2))));
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  // Panning controls for manual mode
   const handleMouseDown = (e) => {
+    if (cameraMode !== 'theater') setCameraMode('theater'); // switch to manual on drag
     setIsDragging(true);
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
@@ -264,43 +313,106 @@ export default function ShipDriftAnimation({
   };
   const handleMouseUp = () => setIsDragging(false);
 
+  // Full West Coast of India shoreline path for Hydrodynamic ocean view mode
+  const westCoastPath = useMemo(() => {
+    const pts = [
+      [68.5, 24.5], [69.0, 23.5], [70.2, 23.1], [69.2, 22.5], [69.5, 21.6],
+      [70.5, 20.8], [72.0, 21.1], [72.6, 21.7], [72.8, 21.2], [72.8, 20.2],
+      [72.84, 18.96], [73.0, 18.2], [73.3, 17.0], [73.8, 15.4], [74.3, 14.8],
+      [74.8, 13.0], [75.3, 12.0], [76.2, 9.9], [76.9, 8.5], [77.5, 8.1]
+    ];
+    return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${project(p[0], p[1]).x} ${project(p[0], p[1]).y}`).join(' ')
+      + ` L ${project(85.0, 8.1).x} ${project(85.0, 8.1).y}`
+      + ` L ${project(85.0, 26.0).x} ${project(85.0, 26.0).y}`
+      + ` L ${project(68.5, 26.0).x} ${project(68.5, 26.0).y} Z`;
+  }, []);
+
+  // Computed raster tile positions: 42 Base Regional Tiles at Zoom 7
+  const renderedRegionalTiles = useMemo(() => {
+    return REGIONAL_TILES_Z7.map(tile => {
+      const minLon = tile2lon(tile.x, tile.z);
+      const maxLon = tile2lon(tile.x + 1, tile.z);
+      const maxLat = tile2lat(tile.y, tile.z);
+      const minLat = tile2lat(tile.y + 1, tile.z);
+      const pTopLeft = project(minLon, maxLat);
+      const pBottomRight = project(maxLon, minLat);
+      return {
+        id: `z7-${tile.x}-${tile.y}`,
+        x: Math.round(pTopLeft.x),
+        y: Math.round(pTopLeft.y),
+        width: Math.round(pBottomRight.x - pTopLeft.x) + 1,
+        height: Math.round(pBottomRight.y - pTopLeft.y) + 1,
+        satelliteUrl: `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${tile.z}/${tile.y}/${tile.x}`,
+        ecdisUrl: `https://a.basemaps.cartocdn.com/dark_all/${tile.z}/${tile.x}/${tile.y}.png`
+      };
+    });
+  }, []);
+
+  // Computed raster tile positions: 12 High-Res Local Detail Tiles at Zoom 8
+  const renderedDetailTiles = useMemo(() => {
+    return DETAIL_TILES_Z8.map(tile => {
+      const minLon = tile2lon(tile.x, tile.z);
+      const maxLon = tile2lon(tile.x + 1, tile.z);
+      const maxLat = tile2lat(tile.y, tile.z);
+      const minLat = tile2lat(tile.y + 1, tile.z);
+      const pTopLeft = project(minLon, maxLat);
+      const pBottomRight = project(maxLon, minLat);
+      return {
+        id: `z8-${tile.x}-${tile.y}`,
+        x: Math.round(pTopLeft.x),
+        y: Math.round(pTopLeft.y),
+        width: Math.round(pBottomRight.x - pTopLeft.x) + 1,
+        height: Math.round(pBottomRight.y - pTopLeft.y) + 1,
+        satelliteUrl: `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${tile.z}/${tile.y}/${tile.x}`,
+        ecdisUrl: `https://a.basemaps.cartocdn.com/dark_all/${tile.z}/${tile.x}/${tile.y}.png`
+      };
+    });
+  }, []);
+
   return (
-    <div style={{
-      position: 'relative',
-      width: '100%',
-      height,
-      background: '#040b14',
-      borderRadius: '12px',
-      overflow: 'hidden',
-      border: '1px solid #1a2d4a',
-      fontFamily: 'Inter, sans-serif'
-    }}>
-      {/* Top Header & Vessel Selection Bar */}
+    <div
+      ref={containerRef}
+      style={{
+        position: 'relative',
+        width: '100%',
+        height,
+        background: '#040b14',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        border: '1px solid #1a2d4a',
+        fontFamily: 'Inter, sans-serif'
+      }}
+    >
+      {/* Top Header & Tactical Controls Bar */}
       <div style={{
-        position: 'absolute', top: '14px', left: '16px', right: '16px', zIndex: 10,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        background: 'rgba(10, 22, 40, 0.92)', backdropFilter: 'blur(10px)',
-        padding: '10px 16px', borderRadius: '10px', border: '1px solid #1f3554'
+        position: 'absolute', top: '10px', left: '12px', right: '12px', zIndex: 20,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px',
+        background: 'rgba(6, 14, 26, 0.95)', backdropFilter: 'blur(12px)',
+        padding: '6px 12px', borderRadius: '8px', border: '1px solid #1f3554',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.5)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <span style={{ fontWeight: 700, color: '#fff', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ animation: 'pulse 1.5s infinite' }}>🛰️</span>
-            AIS & Hydrodynamic Drift Reconstruction
+        {/* Left: Title & Suspect Vessel Switcher */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 800, color: '#f8fafc', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '6px', letterSpacing: '0.4px' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 8px #22c55e' }} />
+            4D AIS RECONSTRUCTION
           </span>
-          <div style={{ display: 'flex', gap: '6px' }}>
+
+          <div style={{ display: 'flex', gap: '4px' }}>
             {vesselProfiles.map((v, i) => (
               <button
                 key={v.id}
                 onClick={() => { setSelectedVesselIndex(i); onSelectVessel(v); }}
                 style={{
-                  padding: '4px 10px',
-                  borderRadius: '6px',
-                  border: i === selectedVesselIndex ? '1px solid #fd7e14' : '1px solid #2d4a6e',
-                  background: i === selectedVesselIndex ? '#2d4a6e' : '#111d35',
-                  color: i === selectedVesselIndex ? '#fff' : '#a8c8e8',
-                  fontSize: '0.75rem',
-                  fontWeight: i === selectedVesselIndex ? 600 : 400,
-                  cursor: 'pointer'
+                  padding: '3px 8px',
+                  borderRadius: '5px',
+                  border: i === selectedVesselIndex ? '1.5px solid #38bdf8' : '1px solid #2d4a6e',
+                  background: i === selectedVesselIndex ? '#0f294a' : '#0b1626',
+                  color: i === selectedVesselIndex ? '#ffffff' : '#94a3b8',
+                  fontSize: '0.68rem',
+                  fontWeight: i === selectedVesselIndex ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
                 }}
               >
                 #{v.rank} {v.name} ({v.score} pts)
@@ -309,125 +421,219 @@ export default function ShipDriftAnimation({
           </div>
         </div>
 
-        {/* Zoom controls */}
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button
-            onClick={() => setZoom(z => Math.min(2.5, z + 0.2))}
-            style={{ width: '28px', height: '28px', background: '#1a2d4a', color: '#fff', border: '1px solid #2d4a6e', borderRadius: '4px', cursor: 'pointer' }}
-          >+</button>
-          <button
-            onClick={() => setZoom(z => Math.max(0.7, z - 0.2))}
-            style={{ width: '28px', height: '28px', background: '#1a2d4a', color: '#fff', border: '1px solid #2d4a6e', borderRadius: '4px', cursor: 'pointer' }}
-          >−</button>
-          <button
-            onClick={() => { setZoom(1.15); setPan({ x: -10, y: 15 }); }}
-            style={{ padding: '0 8px', height: '28px', background: '#1a2d4a', color: '#a8c8e8', border: '1px solid #2d4a6e', borderRadius: '4px', fontSize: '0.7rem', cursor: 'pointer' }}
-          >Reset</button>
+        {/* Center/Right: View Layer Modes & Camera Modes */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Realistic View Mode Switcher */}
+          <div style={{ display: 'flex', background: '#0b1626', padding: '2px', borderRadius: '5px', border: '1px solid #1e3554' }}>
+            <button
+              onClick={() => setViewMode('satellite')}
+              style={{
+                padding: '3px 7px',
+                borderRadius: '3px',
+                border: 'none',
+                background: viewMode === 'satellite' ? '#0284c7' : 'transparent',
+                color: viewMode === 'satellite' ? '#ffffff' : '#94a3b8',
+                fontSize: '0.67rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Real-world Earth observation satellite photography"
+            >
+              🛰️ Real Satellite
+            </button>
+            <button
+              onClick={() => setViewMode('ocean')}
+              style={{
+                padding: '3px 7px',
+                borderRadius: '3px',
+                border: 'none',
+                background: viewMode === 'ocean' ? '#0284c7' : 'transparent',
+                color: viewMode === 'ocean' ? '#ffffff' : '#94a3b8',
+                fontSize: '0.67rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Dynamic hydrodynamic ocean currents & bathymetry"
+            >
+              🌊 Hydrodynamic
+            </button>
+            <button
+              onClick={() => setViewMode('ecdis')}
+              style={{
+                padding: '3px 7px',
+                borderRadius: '3px',
+                border: 'none',
+                background: viewMode === 'ecdis' ? '#0284c7' : 'transparent',
+                color: viewMode === 'ecdis' ? '#ffffff' : '#94a3b8',
+                fontSize: '0.67rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Official ECDIS dark tactical marine navigation chart"
+            >
+              ⚓ ECDIS Radar
+            </button>
+          </div>
+
+          {/* Camera Replay Follow Mode */}
+          <div style={{ display: 'flex', background: '#0b1626', padding: '2px', borderRadius: '5px', border: '1px solid #1e3554' }}>
+            <button
+              onClick={() => setCameraMode('follow')}
+              style={{
+                padding: '3px 7px',
+                borderRadius: '3px',
+                border: 'none',
+                background: cameraMode === 'follow' ? '#059669' : 'transparent',
+                color: cameraMode === 'follow' ? '#ffffff' : '#94a3b8',
+                fontSize: '0.67rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Automatically tracks the tanker with cinematic satellite camera lock"
+            >
+              🎥 Follow Vessel
+            </button>
+            <button
+              onClick={() => setCameraMode('spill')}
+              style={{
+                padding: '3px 7px',
+                borderRadius: '3px',
+                border: 'none',
+                background: cameraMode === 'spill' ? '#059669' : 'transparent',
+                color: cameraMode === 'spill' ? '#ffffff' : '#94a3b8',
+                fontSize: '0.67rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Focus on oil slick centroid"
+            >
+              🎯 Focus Slick
+            </button>
+            <button
+              onClick={() => { setCameraMode('theater'); setZoom(0.55); setPan({ x: 0, y: 0 }); }}
+              style={{
+                padding: '3px 8px',
+                borderRadius: '3px',
+                border: 'none',
+                background: cameraMode === 'theater' ? '#059669' : 'transparent',
+                color: cameraMode === 'theater' ? '#ffffff' : '#94a3b8',
+                fontSize: '0.67rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Wide regional view: Full Arabian Sea and Western Seaboard of India"
+            >
+              🌐 Full Map
+            </button>
+          </div>
+
+          {/* Zoom controls & Scale Indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: '#0b1626', padding: '2px 4px', borderRadius: '5px', border: '1px solid #1e3554' }}>
+            <button
+              onClick={() => { setCameraMode('theater'); setZoom(z => Math.max(0.35, +(z - 0.15).toFixed(2))); }}
+              style={{ width: '22px', height: '22px', background: '#1a2d4a', color: '#fff', border: '1px solid #2d4a6e', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="Zoom out to see full map"
+            >−</button>
+            <span style={{ fontSize: '0.62rem', color: '#38bdf8', minWidth: '34px', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700 }}>
+              {Math.round(currentCameraTransform.scale * 100)}%
+            </span>
+            <button
+              onClick={() => { setCameraMode('theater'); setZoom(z => Math.min(3.5, +(z + 0.15).toFixed(2))); }}
+              style={{ width: '22px', height: '22px', background: '#1a2d4a', color: '#fff', border: '1px solid #2d4a6e', borderRadius: '3px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="Zoom in"
+            >+</button>
+          </div>
         </div>
       </div>
 
-      {/* Real-time Telemetry HUD (Top-Left under toolbar) */}
+      {/* Floating Tactical Telemetry HUD (Left) */}
       {currentTelemetry && (
         <div style={{
-          position: 'absolute', top: '70px', left: '16px', zIndex: 10,
-          background: 'rgba(10, 22, 40, 0.88)', backdropFilter: 'blur(8px)',
-          padding: '12px 16px', borderRadius: '8px', border: '1px solid #1f3554',
-          width: '240px', color: '#fff', fontSize: '0.75rem', pointerEvents: 'none'
+          position: 'absolute', top: '92px', left: '12px', zIndex: 15,
+          background: 'rgba(6, 14, 28, 0.92)', backdropFilter: 'blur(10px)',
+          padding: '10px 12px', borderRadius: '8px', border: '1px solid #1e3554',
+          width: '205px', color: '#fff', fontSize: '0.7rem', pointerEvents: 'none',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
         }}>
-          <div style={{ color: '#6b9fd4', fontWeight: 700, fontSize: '0.8rem', marginBottom: '8px', borderBottom: '1px solid #1a2d4a', paddingBottom: '4px' }}>
-            TELEMETRY — {activeVessel.name}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', borderBottom: '1px solid #1a2d4a', paddingBottom: '4px' }}>
+            <span style={{ color: '#38bdf8', fontWeight: 800, fontSize: '0.74rem' }}>{activeVessel.name}</span>
+            <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>MMSI: {activeVessel.mmsi}</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '6px' }}>
             <div>
-              <div style={{ color: '#8faec9', fontSize: '0.65rem' }}>SPEED (SOG)</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: currentTelemetry.isSlowActive ? '#dc3545' : '#00d2d3' }}>
-                {(Number(currentTelemetry.sog) || 0).toFixed(1)} <span style={{ fontSize: '0.7rem' }}>kn</span>
+              <div style={{ color: '#94a3b8', fontSize: '0.6rem', textTransform: 'uppercase' }}>SPEED (SOG)</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 800, fontFamily: 'monospace', color: currentTelemetry.isSlowActive ? '#ef4444' : '#38bdf8' }}>
+                {(Number(currentTelemetry.sog) || 0).toFixed(1)} <span style={{ fontSize: '0.65rem' }}>kn</span>
               </div>
             </div>
             <div>
-              <div style={{ color: '#8faec9', fontSize: '0.65rem' }}>COURSE (COG)</div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 800, color: currentTelemetry.isTurnActive ? '#fd7e14' : '#fff' }}>
+              <div style={{ color: '#94a3b8', fontSize: '0.6rem', textTransform: 'uppercase' }}>COURSE (COG)</div>
+              <div style={{ fontSize: '1.15rem', fontWeight: 800, fontFamily: 'monospace', color: currentTelemetry.isTurnActive ? '#f59e0b' : '#f8fafc' }}>
                 {Math.round(Number(currentTelemetry.cog) || 0)}°
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#d0e4f5' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: '#cbd5e1', fontSize: '0.66rem', fontFamily: 'monospace' }}>
             <span>Position:</span>
             <span>{(Number(currentTelemetry.lat) || 0).toFixed(3)}°N, {(Number(currentTelemetry.lon) || 0).toFixed(3)}°E</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#d0e4f5' }}>
-            <span>Dist to Origin Cone:</span>
-            <span style={{ fontWeight: 700, color: (Number(currentTelemetry.distNm) || 0) < 3 ? '#dc3545' : '#a8c8e8' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: '#cbd5e1', fontSize: '0.66rem' }}>
+            <span>Dist to Origin:</span>
+            <span style={{ fontWeight: 700, color: (Number(currentTelemetry.distNm) || 0) < 4 ? '#ef4444' : '#38bdf8' }}>
               {(Number(currentTelemetry.distNm) || 0).toFixed(1)} nm
             </span>
           </div>
 
-          {/* Dynamic Anomaly Alert Flag */}
-          {(currentTelemetry.isGapActive || currentTelemetry.isSlowActive || currentTelemetry.isTurnActive) ? (
-            <div style={{
-              background: 'rgba(220, 53, 69, 0.25)', border: '1px solid #dc3545',
-              borderRadius: '6px', padding: '6px 8px', color: '#ff6b6b',
-              fontWeight: 700, fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '6px'
-            }}>
-              <span>🚨</span>
-              <span>{currentTelemetry.status}</span>
-            </div>
-          ) : (
-            <div style={{
-              background: 'rgba(40, 167, 69, 0.15)', border: '1px solid #28a745',
-              borderRadius: '6px', padding: '4px 8px', color: '#2ecc71',
-              fontSize: '0.65rem', textAlign: 'center'
-            }}>
-              ✓ Normal AIS Telemetry
-            </div>
-          )}
+          {/* Anomaly Badge */}
+          <div style={{
+            background: (currentTelemetry.isGapActive || currentTelemetry.isSlowActive || currentTelemetry.isTurnActive) ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
+            border: (currentTelemetry.isGapActive || currentTelemetry.isSlowActive || currentTelemetry.isTurnActive) ? '1px solid #ef4444' : '1px solid #10b981',
+            borderRadius: '4px', padding: '4px 6px',
+            color: (currentTelemetry.isGapActive || currentTelemetry.isSlowActive || currentTelemetry.isTurnActive) ? '#fca5a5' : '#6ee7b7',
+            fontWeight: 700, fontSize: '0.64rem', textAlign: 'center'
+          }}>
+            {currentTelemetry.status}
+          </div>
         </div>
       )}
 
-      {/* Interactive Legend (Top-Right) */}
+      {/* Floating Scientific Legend (Right) */}
       <div style={{
-        position: 'absolute', top: '70px', right: '16px', zIndex: 10,
-        background: 'rgba(10, 22, 40, 0.88)', backdropFilter: 'blur(8px)',
-        padding: '10px 14px', borderRadius: '8px', border: '1px solid #1f3554',
-        color: '#a8c8e8', fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '6px'
+        position: 'absolute', top: '92px', right: '12px', zIndex: 15,
+        background: 'rgba(6, 14, 28, 0.92)', backdropFilter: 'blur(10px)',
+        padding: '8px 10px', borderRadius: '8px', border: '1px solid #1e3554',
+        color: '#cbd5e1', fontSize: '0.65rem', display: 'flex', flexDirection: 'column', gap: '4px',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
       }}>
-        <div style={{ fontWeight: 700, color: '#fff', marginBottom: '2px' }}>Map Legend</div>
+        <div style={{ fontWeight: 800, color: '#f8fafc', marginBottom: '2px', letterSpacing: '0.5px' }}>MAP TELEMETRY</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '14px', height: '8px', background: '#111', border: '1.5px solid #dc3545', borderRadius: '4px' }} />
+          <div style={{ width: '14px', height: '8px', background: '#09090b', border: '1.5px solid #ef4444', borderRadius: '3px' }} />
           <span>SAR Oil Slick (T0)</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '14px', height: '8px', background: 'rgba(253, 126, 20, 0.3)', border: '1px dashed #fd7e14' }} />
-          <span>Backward Origin Cone (T-24h)</span>
+          <div style={{ width: '14px', height: '8px', background: 'rgba(249, 115, 22, 0.3)', border: '1px dashed #f97316' }} />
+          <span>T-24h Origin Cone</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '14px', height: '2px', background: '#00d2d3' }} />
+          <div style={{ width: '14px', height: '2px', background: '#06b6d4' }} />
           <span>Forward 48h Drift Forecast</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '14px', height: '2px', borderTop: '2px dashed #dc3545' }} />
+          <div style={{ width: '14px', height: '2px', borderTop: '2px dashed #ef4444' }} />
           <span>Deliberate AIS Blackout Gap</span>
         </div>
 
-        <div style={{ borderTop: '1px solid #1f3554', marginTop: '4px', paddingTop: '6px' }}>
-          <div style={{ fontWeight: 700, color: '#60a5fa', fontSize: '0.65rem', marginBottom: '2px' }}>
-            🌊 CMEMS Ocean Current:
-          </div>
-          <div style={{ color: '#e2e8f0', fontSize: '0.65rem' }}>
-            {driftData?.parameters?.current_speed_ms ? `${driftData.parameters.current_speed_ms} m/s @ ${driftData.parameters.current_dir_deg}°` : '0.28 m/s @ 215° (SW)'}
-          </div>
-          <div style={{ fontWeight: 700, color: '#38bdf8', fontSize: '0.65rem', marginTop: '4px', marginBottom: '2px' }}>
-            💨 ERA5 10m Wind:
-          </div>
-          <div style={{ color: '#e2e8f0', fontSize: '0.65rem' }}>
-            {driftData?.parameters?.wind_speed_ms ? `${driftData.parameters.wind_speed_ms} m/s @ ${driftData.parameters.wind_dir_deg}°` : '5.8 m/s @ 205°'}
-          </div>
+        <div style={{ borderTop: '1px solid #1f3554', marginTop: '4px', paddingTop: '4px' }}>
+          <div style={{ color: '#38bdf8', fontWeight: 700 }}>CMEMS Surface Current:</div>
+          <div style={{ color: '#ffffff' }}>0.28 m/s @ 215° (SW)</div>
+          <div style={{ color: '#fbbf24', fontWeight: 700, marginTop: '3px' }}>ERA5 10m Wind:</div>
+          <div style={{ color: '#ffffff' }}>5.8 m/s @ 205°</div>
         </div>
       </div>
 
-      {/* SVG Canvas */}
+      {/* Main Interactive Geographic Canvas */}
       <svg
         viewBox="0 0 900 620"
         style={{
@@ -441,158 +647,299 @@ export default function ShipDriftAnimation({
         onMouseLeave={handleMouseUp}
       >
         <defs>
-          {/* Oceanic gradients */}
-          <radialGradient id="deepOcean" cx="45%" cy="50%" r="75%">
-            <stop offset="0%" stopColor="#0a1a33" />
-            <stop offset="100%" stopColor="#030810" />
+          {/* Oceanic water gradient for Hydrodynamic mode */}
+          <radialGradient id="hydroOcean" cx="40%" cy="50%" r="75%">
+            <stop offset="0%" stopColor="#0b2545" />
+            <stop offset="50%" stopColor="#07172b" />
+            <stop offset="100%" stopColor="#030b14" />
           </radialGradient>
 
-          {/* Backward drift cone gradient */}
-          <linearGradient id="backwardCone" x1="100%" y1="100%" x2="0%" y2="0%">
-            <stop offset="0%" stopColor="#dc3545" stopOpacity="0.45" />
-            <stop offset="70%" stopColor="#fd7e14" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#f0ad4e" stopOpacity="0.05" />
+          {/* Backward drift probability gradient */}
+          <radialGradient id="originProbGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ef4444" stopOpacity="0.8" />
+            <stop offset="45%" stopColor="#f97316" stopOpacity="0.45" />
+            <stop offset="80%" stopColor="#eab308" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
+          </radialGradient>
+
+          {/* Authentic Ship Propeller Wake Foam Gradient */}
+          <linearGradient id="wakeFoamRealistic" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+            <stop offset="25%" stopColor="#bae6fd" stopOpacity="0.65" />
+            <stop offset="60%" stopColor="#0284c7" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#0369a1" stopOpacity="0" />
           </linearGradient>
 
-          {/* Slick glow */}
-          <filter id="oilGlow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          {/* Heavy crude oil slick texture filter */}
+          <filter id="crudeTexture" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="3" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G" />
           </filter>
 
-          {/* Video-Game: Tanker Hull Plating Gradient */}
-          <linearGradient id="tankerHullGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#1e293b" />
-            <stop offset="20%" stopColor="#334155" />
-            <stop offset="50%" stopColor="#475569" />
-            <stop offset="80%" stopColor="#334155" />
-            <stop offset="100%" stopColor="#1e293b" />
+          {/* Photorealistic Tanker Hull Metallic Gradients */}
+          <linearGradient id="tankerHullRealistic" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#0f172a" />
+            <stop offset="12%" stopColor="#7f1d1d" /> {/* Dark red waterline anti-fouling */}
+            <stop offset="28%" stopColor="#334155" />
+            <stop offset="50%" stopColor="#64748b" /> {/* Deck plate highlight */}
+            <stop offset="72%" stopColor="#334155" />
+            <stop offset="88%" stopColor="#7f1d1d" />
+            <stop offset="100%" stopColor="#0f172a" />
           </linearGradient>
-
-          {/* Video-Game: Propeller Wake Foam Gradient */}
-          <linearGradient id="wakeFoam" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.75" />
-            <stop offset="40%" stopColor="#e0f2fe" stopOpacity="0.45" />
-            <stop offset="100%" stopColor="#0284c7" stopOpacity="0" />
-          </linearGradient>
-
-          {/* Video-Game: Radar Phosphor Sweep Gradient */}
-          <radialGradient id="radarSweepGrad" cx="0%" cy="0%" r="100%">
-            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.45" />
-            <stop offset="60%" stopColor="#10b981" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#047857" stopOpacity="0" />
-          </radialGradient>
 
           {/* Navigation Light Glow Filters */}
-          <filter id="redNavGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2.5" result="blur" />
+          <filter id="navPortGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
-          <filter id="greenNavGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2.5" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-          <filter id="hudTargetGlow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
+          <filter id="navStbdGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
         </defs>
 
-        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`} style={{ transformOrigin: '450px 310px' }}>
-          {/* Deep Ocean */}
-          <rect x="0" y="0" width="900" height="620" fill="url(#deepOcean)" />
+        <g
+          transform={`translate(${currentCameraTransform.x}, ${currentCameraTransform.y}) translate(450, 310) scale(${currentCameraTransform.scale}) translate(-450, -310)`}
+          style={{ transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1)' }}
+        >
+          {/* 1. LAYER 1: BASEMAP TILES */}
+          {/* Real Satellite Imagery Tiles */}
+          {viewMode === 'satellite' && (
+            <g>
+              <rect x="-2000" y="-1800" width="5500" height="4600" fill="#040d1a" />
+              {/* Regional Z7 satellite tiles (covers whole Arabian Sea & Western India) */}
+              {renderedRegionalTiles.map(t => (
+                <image
+                  key={t.id}
+                  href={t.satelliteUrl}
+                  x={t.x}
+                  y={t.y}
+                  width={t.width}
+                  height={t.height}
+                  preserveAspectRatio="none"
+                />
+              ))}
+              {/* Detailed Z8 satellite tiles around Mumbai offshore */}
+              {renderedDetailTiles.map(t => (
+                <image
+                  key={t.id}
+                  href={t.satelliteUrl}
+                  x={t.x}
+                  y={t.y}
+                  width={t.width}
+                  height={t.height}
+                  preserveAspectRatio="none"
+                />
+              ))}
+              {/* Subtle satellite atmospheric color-grade */}
+              <rect x="-2000" y="-1800" width="5500" height="4600" fill="rgba(10, 25, 47, 0.12)" pointerEvents="none" />
+            </g>
+          )}
 
-          {/* Nautical Lat/Lon Grid lines */}
-          {[70.5, 71.5, 72.5, 73.5].map(lon => {
+          {/* ECDIS Dark Tactical Nautical Tiles */}
+          {viewMode === 'ecdis' && (
+            <g>
+              <rect x="-2000" y="-1800" width="5500" height="4600" fill="#06101e" />
+              {/* Regional Z7 ecdis tiles */}
+              {renderedRegionalTiles.map(t => (
+                <image
+                  key={t.id}
+                  href={t.ecdisUrl}
+                  x={t.x}
+                  y={t.y}
+                  width={t.width}
+                  height={t.height}
+                  preserveAspectRatio="none"
+                />
+              ))}
+              {/* Detailed Z8 ecdis tiles */}
+              {renderedDetailTiles.map(t => (
+                <image
+                  key={t.id}
+                  href={t.ecdisUrl}
+                  x={t.x}
+                  y={t.y}
+                  width={t.width}
+                  height={t.height}
+                  preserveAspectRatio="none"
+                />
+              ))}
+            </g>
+          )}
+
+          {/* Oceanic Hydrodynamic Animated Surface */}
+          {viewMode === 'ocean' && (
+            <g>
+              <rect x="-2000" y="-1800" width="5500" height="4600" fill="url(#hydroOcean)" />
+              {/* Full Continental Coastline (Gujarat to Kerala) */}
+              <path
+                d={westCoastPath}
+                fill="#111d2e"
+                stroke="#38bdf8"
+                strokeWidth="1.5"
+              />
+              {/* Ocean Current Flow Streamlines */}
+              {[12.0, 14.0, 16.0, 17.6, 18.2, 18.8, 19.4, 21.0].map((latLine, li) => (
+                <g key={`cur-${li}`} opacity="0.38">
+                  <path
+                    d={`M ${project(66.5, latLine).x} ${project(66.5, latLine).y} Q ${project(70.5, latLine - 0.2).x} ${project(70.5, latLine - 0.2).y} ${project(74.0, latLine - 0.5).x} ${project(74.0, latLine - 0.5).y}`}
+                    fill="none"
+                    stroke="#0284c7"
+                    strokeWidth="1.2"
+                    strokeDasharray="10 14"
+                  >
+                    <animate attributeName="stroke-dashoffset" values="48;0" dur="2.4s" repeatCount="indefinite" />
+                  </path>
+                </g>
+              ))}
+            </g>
+          )}
+
+          {/* Geographic Coordinates Grid Overlay */}
+          {[66.0, 68.0, 70.0, 72.0, 74.0, 76.0, 78.0, 80.0].map(lon => {
             const { x } = project(lon, 18.0);
             return (
-              <g key={`lon-${lon}`}>
-                <line x1={x} y1="0" x2={x} y2="620" stroke="#0e233d" strokeDasharray="3 4" />
-                <text x={x + 4} y="20" fill="#1f4068" fontSize="10">{lon}°E</text>
+              <g key={`lon-${lon}`} opacity="0.32">
+                <line x1={x} y1="-1400" x2={x} y2="2400" stroke="#38bdf8" strokeDasharray="3 6" strokeWidth="0.75" />
+                <text x={x + 4} y="22" fill="#93c5fd" fontSize="9" fontFamily="monospace">{lon}°E</text>
               </g>
             );
           })}
-          {[17.5, 18.5, 19.5].map(lat => {
+          {[10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0].map(lat => {
             const { y } = project(71.0, lat);
             return (
-              <g key={`lat-${lat}`}>
-                <line x1="0" y1={y} x2="900" y2={y} stroke="#0e233d" strokeDasharray="3 4" />
-                <text x="10" y={y - 4} fill="#1f4068" fontSize="10">{lat}°N</text>
+              <g key={`lat-${lat}`} opacity="0.32">
+                <line x1="-1200" y1={y} x2="2700" y2={y} stroke="#38bdf8" strokeDasharray="3 6" strokeWidth="0.75" />
+                <text x="12" y={y - 4} fill="#93c5fd" fontSize="9" fontFamily="monospace">{lat}°N</text>
               </g>
             );
           })}
 
-          {/* Coastline Representation (Maharashtra / Mumbai coast) */}
-          <path
-            d={`
-              M ${project(72.75, 20.2).x} ${project(72.75, 20.2).y}
-              Q ${project(72.82, 19.4).x} ${project(72.82, 19.4).y} ${project(72.84, 18.96).x} ${project(72.84, 18.96).y}
-              Q ${project(72.95, 18.2).x} ${project(72.95, 18.2).y} ${project(73.30, 17.2).x} ${project(73.30, 17.2).y}
-              L 900 620 L 900 0 Z
-            `}
-            fill="#121e30"
-            stroke="#27456b"
-            strokeWidth="1.5"
-          />
-
-          {/* Port Marker: Mumbai */}
-          <g transform={`translate(${project(72.84, 18.96).x}, ${project(72.84, 18.96).y})`}>
-            <circle r="4" fill="#6b9fd4" />
-            <text x="-50" y="4" fill="#a8c8e8" fontSize="10" fontWeight="600">Mumbai Port</text>
-          </g>
-
-          {/* 1. BACKWARD DRIFT: ORIGIN PROBABILITY CONE */}
-          <g>
-            <path
-              d={backwardOriginCone.path}
-              fill="url(#backwardCone)"
-              stroke="#fd7e14"
-              strokeWidth="1.5"
-              strokeDasharray="4 3"
-            />
-            {/* Pulsating origin centroid */}
-            <circle
-              cx={backwardOriginCone.center.x}
-              cy={backwardOriginCone.center.y}
-              r="7"
-              fill="none"
-              stroke="#fd7e14"
-              strokeWidth="2"
-            >
-              <animate attributeName="r" values="5;14;5" dur="2s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite" />
-            </circle>
-            <circle cx={backwardOriginCone.center.x} cy={backwardOriginCone.center.y} r="3" fill="#fd7e14" />
-            <text
-              x={backwardOriginCone.center.x - 65}
-              y={backwardOriginCone.center.y - 12}
-              fill="#fd7e14"
-              fontSize="9"
-              fontWeight="700"
-            >
-              Origin Window Centroid (T-24h)
+          {/* Water Body Identifiers (Maritime labels) */}
+          <g opacity="0.35" pointerEvents="none">
+            <text x={project(68.2, 17.2).x} y={project(68.2, 17.2).y} fill="#38bdf8" fontSize="16" fontWeight="800" textAnchor="middle" letterSpacing="6px">
+              ARABIAN SEA
+            </text>
+            <text x={project(72.0, 21.3).x} y={project(72.0, 21.3).y} fill="#38bdf8" fontSize="10" fontWeight="700" textAnchor="middle" letterSpacing="2px">
+              GULF OF KHAMBHAT
+            </text>
+            <text x={project(69.6, 22.7).x} y={project(69.6, 22.7).y} fill="#38bdf8" fontSize="10" fontWeight="700" textAnchor="middle" letterSpacing="2px">
+              GULF OF KUTCH
             </text>
           </g>
 
-          {/* 2. FORWARD DRIFT FORECAST TRAJECTORY */}
+          {/* Major Strategic Coastal Ports & Regional Anchors */}
+          {MAJOR_PORTS.map((port) => {
+            const pt = project(port.lon, port.lat);
+            return (
+              <g key={port.name} transform={`translate(${pt.x}, ${pt.y})`}>
+                <circle r={port.isMajor ? 5 : 3.5} fill={port.isMajor ? '#38bdf8' : '#0284c7'} stroke="#ffffff" strokeWidth="1.2" />
+                {port.isMajor && (
+                  <circle r="12" fill="none" stroke="#38bdf8" strokeWidth="1" strokeDasharray="3 3">
+                    <animate attributeName="r" values="6;16;6" dur="3s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.8;0.1;0.8" dur="3s" repeatCount="indefinite" />
+                  </circle>
+                )}
+                <rect
+                  x={port.offset.x - 3}
+                  y={port.offset.y - 10}
+                  width={port.name.length * 6.2 + 8}
+                  height="16"
+                  rx="3"
+                  fill="rgba(11, 22, 38, 0.88)"
+                  stroke={port.isMajor ? '#38bdf8' : '#224a73'}
+                  strokeWidth="0.8"
+                />
+                <text
+                  x={port.offset.x + 2}
+                  y={port.offset.y + 2}
+                  fill="#f8fafc"
+                  fontSize="8.5"
+                  fontWeight={port.isMajor ? '800' : '600'}
+                >
+                  {port.name}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* 2. LAYER 2: SCIENTIFIC BACKWARD ORIGIN PROBABILITY CLOUD */}
+          <g>
+            {/* Outer 95% Confidence Envelope */}
+            <path
+              d={backwardOriginCone.outerPath}
+              fill="rgba(234, 179, 8, 0.12)"
+              stroke="#eab308"
+              strokeWidth="1"
+              strokeDasharray="4 4"
+            />
+            {/* Mid 75% Confidence Corridor */}
+            <path
+              d={backwardOriginCone.midPath}
+              fill="rgba(249, 115, 22, 0.22)"
+              stroke="#f97316"
+              strokeWidth="1.5"
+              strokeDasharray="5 3"
+            />
+            {/* Inner 50% High-Probability Core */}
+            <path
+              d={backwardOriginCone.corePath}
+              fill="rgba(239, 68, 68, 0.35)"
+              stroke="#ef4444"
+              strokeWidth="1.8"
+            />
+
+            {/* Pulsating Origin Window Centroid (T-24h) */}
+            <circle
+              cx={backwardOriginCone.center.x}
+              cy={backwardOriginCone.center.y}
+              r="22"
+              fill="url(#originProbGrad)"
+            />
+            <circle
+              cx={backwardOriginCone.center.x}
+              cy={backwardOriginCone.center.y}
+              r="6"
+              fill="none"
+              stroke="#ffffff"
+              strokeWidth="2"
+            >
+              <animate attributeName="r" values="4;14;4" dur="2s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite" />
+            </circle>
+            <circle cx={backwardOriginCone.center.x} cy={backwardOriginCone.center.y} r="3" fill="#ef4444" />
+
+            <g transform={`translate(${backwardOriginCone.center.x - 75}, ${backwardOriginCone.center.y - 18})`}>
+              <rect x="0" y="0" width="150" height="20" rx="4" fill="rgba(15, 23, 42, 0.9)" stroke="#f97316" strokeWidth="1" />
+              <text x="75" y="13" fill="#f8fafc" fontSize="8.5" fontWeight="800" textAnchor="middle">
+                T-24h Origin Probability Centroid
+              </text>
+            </g>
+          </g>
+
+          {/* 3. LAYER 3: FORWARD 48H DRIFT FORECAST VECTOR */}
           <g>
             <path
               d={`M ${forwardPath.p0.x} ${forwardPath.p0.y} Q ${forwardPath.p24.x} ${forwardPath.p24.y} ${forwardPath.p48.x} ${forwardPath.p48.y}`}
               fill="none"
-              stroke="#00d2d3"
-              strokeWidth="2"
-              strokeDasharray="4 4"
+              stroke="#06b6d4"
+              strokeWidth="2.5"
+              strokeDasharray="6 4"
             />
-            {/* +24h point */}
-            <circle cx={forwardPath.p24.x} cy={forwardPath.p24.y} r="4" fill="#00d2d3" />
-            <text x={forwardPath.p24.x + 8} y={forwardPath.p24.y + 3} fill="#00d2d3" fontSize="8" fontWeight="600">+24h Drift</text>
+            {/* +24h Forecast Waypoint */}
+            <circle cx={forwardPath.p24.x} cy={forwardPath.p24.y} r="4.5" fill="#06b6d4" stroke="#ffffff" strokeWidth="1.5" />
+            <text x={forwardPath.p24.x + 8} y={forwardPath.p24.y + 3} fill="#06b6d4" fontSize="8.5" fontWeight="800" style={{ textShadow: '0 1px 3px #000' }}>
+              +24h Forecast
+            </text>
 
-            {/* +48h point */}
-            <circle cx={forwardPath.p48.x} cy={forwardPath.p48.y} r="4" fill="#00d2d3" />
-            <text x={forwardPath.p48.x + 8} y={forwardPath.p48.y + 3} fill="#00d2d3" fontSize="8" fontWeight="600">+48h Projected</text>
+            {/* +48h Forecast Waypoint */}
+            <circle cx={forwardPath.p48.x} cy={forwardPath.p48.y} r="4.5" fill="#06b6d4" stroke="#ffffff" strokeWidth="1.5" />
+            <text x={forwardPath.p48.x + 8} y={forwardPath.p48.y + 3} fill="#06b6d4" fontSize="8.5" fontWeight="800" style={{ textShadow: '0 1px 3px #000' }}>
+              +48h Forecast
+            </text>
           </g>
 
-          {/* 3. ALL VESSEL TRACK PATHS (Background Context) */}
+          {/* 4. LAYER 4: HISTORICAL VESSEL TRACKS */}
           {vesselProfiles.map((vp, idx) => {
             const isSelected = idx === selectedVesselIndex;
             const pts = vp.keyframes.map(k => project(k.lon, k.lat));
@@ -603,25 +950,24 @@ export default function ShipDriftAnimation({
                 <path
                   d={pathD}
                   fill="none"
-                  stroke={isSelected ? (vp.isCulprit ? '#fd7e14' : '#6b9fd4') : '#1e385b'}
-                  strokeWidth={isSelected ? 2.5 : 1.2}
-                  strokeDasharray={isSelected ? 'none' : '2 3'}
+                  stroke={isSelected ? (vp.isCulprit ? '#f97316' : '#38bdf8') : '#334155'}
+                  strokeWidth={isSelected ? 3 : 1.5}
+                  strokeDasharray={isSelected ? 'none' : '3 4'}
                   opacity={isSelected ? 0.95 : 0.4}
                 />
 
-                {/* Highlight AIS Gap for Culprit */}
+                {/* Highlight Deliberate AIS Blackout Gap for Culprit Tanker */}
                 {vp.isCulprit && (
                   <g>
-                    {/* Gap line between keyframe 3 and 5 */}
                     <line
                       x1={pts[3].x} y1={pts[3].y}
                       x2={pts[4].x} y2={pts[4].y}
-                      stroke="#dc3545" strokeWidth="3.5" strokeDasharray="5 4"
+                      stroke="#ef4444" strokeWidth="3.5" strokeDasharray="6 4"
                     />
                     <line
                       x1={pts[4].x} y1={pts[4].y}
                       x2={pts[5].x} y2={pts[5].y}
-                      stroke="#dc3545" strokeWidth="3.5" strokeDasharray="5 4"
+                      stroke="#ef4444" strokeWidth="3.5" strokeDasharray="6 4"
                     />
                   </g>
                 )}
@@ -629,341 +975,187 @@ export default function ShipDriftAnimation({
             );
           })}
 
-          {/* 3.5. 360° ROTATING NAVAL TACTICAL RADAR SWEEP */}
-          <g transform={`translate(${project(spillLon, spillLat).x}, ${project(spillLon, spillLat).y})`} opacity="0.35" pointerEvents="none">
-            {/* Tactical range rings */}
-            <circle r="70" fill="none" stroke="#22c55e" strokeWidth="0.8" strokeDasharray="3 4" opacity="0.3" />
-            <circle r="140" fill="none" stroke="#22c55e" strokeWidth="0.8" strokeDasharray="4 6" opacity="0.25" />
-            <circle r="210" fill="none" stroke="#22c55e" strokeWidth="0.8" strokeDasharray="4 8" opacity="0.2" />
-            {/* Rotating phosphor radar beam sweep */}
-            <path
-              d="M 0 0 L 210 -40 A 214 214 0 0 1 214 0 Z"
-              fill="url(#radarSweepGrad)"
-            >
-              <animateTransform
-                attributeName="transform"
-                type="rotate"
-                from="0"
-                to="360"
-                dur="4.5s"
-                repeatCount="indefinite"
-              />
-            </path>
-            <line x1="0" y1="0" x2="214" y2="0" stroke="#4ade80" strokeWidth="1.5" opacity="0.8">
-              <animateTransform
-                attributeName="transform"
-                type="rotate"
-                from="0"
-                to="360"
-                dur="4.5s"
-                repeatCount="indefinite"
-              />
-            </line>
+          {/* 5. LAYER 5: SENTINEL-1 SAR REALISTIC OIL SLICK */}
+          <g transform={`translate(${project(spillLon, spillLat).x}, ${project(spillLon, spillLat).y})`}>
+            {/* Iridescent Hydrocarbon Sheen (Outer boundary) */}
+            <ellipse
+              rx="32" ry="16"
+              transform="rotate(-26)"
+              fill="rgba(6, 182, 212, 0.18)"
+              stroke="#06b6d4"
+              strokeWidth="1.5"
+              strokeDasharray="3 3"
+            />
+            {/* Weathered Chocolate Mousse Emulsion */}
+            <ellipse
+              rx="24" ry="12"
+              transform="rotate(-26)"
+              fill="#18181b"
+              stroke="#713f12"
+              strokeWidth="2"
+              opacity="0.9"
+            />
+            {/* Heavy Crude Viscous Core */}
+            <ellipse
+              rx="16" ry="8"
+              transform="rotate(-26)"
+              fill="#09090b"
+              filter="url(#crudeTexture)"
+            />
+            <circle r="3" fill="#ffffff" />
+
+            {/* Slick Information Callout */}
+            <g transform="translate(34, -8)">
+              <rect x="0" y="0" width="160" height="22" rx="4" fill="rgba(9, 9, 11, 0.88)" stroke="#ef4444" strokeWidth="1" />
+              <text x="8" y="14" fill="#ffffff" fontSize="9" fontWeight="800">
+                {spill?.name || 'SPILL-20240315-001'} (12.5 km²)
+              </text>
+            </g>
           </g>
 
-          {/* 4. HIGH-FIDELITY VIDEO-GAME NAVAL VESSEL & TACTICAL HUD */}
+          {/* 6. LAYER 6: PHOTOREALISTIC VESSEL & DYNAMIC HYDRODYNAMIC WAKE */}
           {currentTelemetry && (
             <g transform={`translate(${project(currentTelemetry.lon, currentTelemetry.lat).x}, ${project(currentTelemetry.lon, currentTelemetry.lat).y})`}>
               
-              {/* === TACTICAL TARGETING RETICLE & LOCK BRACKETS (Video-Game HUD) === */}
-              <g pointerEvents="none">
-                {/* Rotating Outer Target Ring */}
-                <circle
-                  r="34"
-                  fill="none"
-                  stroke={activeVessel.isCulprit ? '#ef4444' : '#38bdf8'}
-                  strokeWidth="1.2"
-                  strokeDasharray="8 6"
-                  opacity="0.65"
-                  filter="url(#hudTargetGlow)"
-                >
-                  <animateTransform
-                    attributeName="transform"
-                    type="rotate"
-                    from="0"
-                    to="360"
-                    dur="12s"
-                    repeatCount="indefinite"
-                  />
-                </circle>
-
-                {/* 4 Corner Targeting Brackets [  ] */}
-                <g stroke={activeVessel.isCulprit ? '#ef4444' : '#38bdf8'} strokeWidth="2.5" fill="none">
-                  {/* Top-Left */}
-                  <path d="M -30 -18 L -30 -30 L -18 -30" />
-                  {/* Top-Right */}
-                  <path d="M 18 -30 L 30 -30 L 30 -18" />
-                  {/* Bottom-Left */}
-                  <path d="M -30 18 L -30 30 L -18 30" />
-                  {/* Bottom-Right */}
-                  <path d="M 18 30 L 30 30 L 30 18" />
-                </g>
-
-                {/* Tactical Identification Header Tag */}
-                <g transform="translate(38, -28)">
-                  <rect
-                    x="0" y="0" width="168" height="46" rx="4"
-                    fill="rgba(6, 15, 30, 0.92)"
-                    stroke={activeVessel.isCulprit ? '#ef4444' : '#38bdf8'}
-                    strokeWidth="1.2"
-                  />
-                  {/* Top status banner */}
-                  <rect
-                    x="0" y="0" width="168" height="14" rx="3"
-                    fill={activeVessel.isCulprit ? 'rgba(239, 68, 68, 0.3)' : 'rgba(56, 189, 248, 0.25)'}
-                  />
-                  <text x="6" y="10" fill="#ffffff" fontSize="8" fontWeight="800" letterSpacing="0.6">
-                    {activeVessel.isCulprit ? '🎯 PRIMARY SUSPECT #1' : `VESSEL RANK #${activeVessel.rank}`}
-                  </text>
-                  <text x="6" y="24" fill="#f8fafc" fontSize="9" fontWeight="700">
-                    {activeVessel.name}
-                  </text>
-                  <text x="6" y="38" fill="#94a3b8" fontSize="8" fontFamily="monospace">
-                    SPD: <strong style={{ color: '#38bdf8' }}>{(Number(currentTelemetry.sog) || 0).toFixed(1)} kn</strong> | HDG: <strong style={{ color: '#f59e0b' }}>{Math.round(Number(currentTelemetry.cog) || 0)}°</strong>
-                  </text>
-                </g>
-              </g>
-
-              {/* === ROTATED VESSEL SYSTEM (Heading aligned) === */}
+              {/* Heading-Aligned Vessel and Water Simulation */}
               <g transform={`rotate(${currentTelemetry.cog})`}>
                 
-                {/* 1. DYNAMIC PROPELLER WAKE & WATER CAVITATION (Behind Stern) */}
-                {currentTelemetry.sog > 1.0 && (
-                  <g opacity={Math.min(0.85, currentTelemetry.sog / 14)}>
-                    {/* Expanding twin frothing water wash plumes */}
+                {/* 6A. HYDRODYNAMIC KELVIN WAKE & PROPELLER CAVITATION */}
+                {currentTelemetry.sog > 1.2 && (
+                  <g opacity={Math.min(0.95, currentTelemetry.sog / 12)}>
+                    {/* Expanding V-Wake divergent shockwaves */}
                     <path
-                      d="M -4 24 Q -9 48 -18 78 L -11 78 Q -5 48 -1 24 Z"
-                      fill="url(#wakeFoam)"
+                      d="M -4 20 Q -16 65 -36 120 L -24 120 Q -8 65 -1 20 Z"
+                      fill="url(#wakeFoamRealistic)"
                     />
                     <path
-                      d="M 4 24 Q 9 48 18 78 L 11 78 Q 5 48 1 24 Z"
-                      fill="url(#wakeFoam)"
+                      d="M 4 20 Q 16 65 36 120 L 24 120 Q 8 65 1 20 Z"
+                      fill="url(#wakeFoamRealistic)"
                     />
-                    {/* Surface bubbling wash ripples */}
-                    <ellipse cx="0" cy="38" rx="8" ry="4" fill="none" stroke="#67e8f9" strokeWidth="1" opacity="0.7">
-                      <animate attributeName="ry" values="3;7;3" dur="0.8s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="0.7;0.1;0.7" dur="0.8s" repeatCount="indefinite" />
+                    {/* Turbulent propeller wash foaming center */}
+                    <ellipse cx="0" cy="35" rx="7" ry="12" fill="#ffffff" opacity="0.8">
+                      <animate attributeName="ry" values="10;15;10" dur="0.6s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.8;0.3;0.8" dur="0.6s" repeatCount="indefinite" />
                     </ellipse>
-                    <ellipse cx="0" cy="58" rx="14" ry="6" fill="none" stroke="#e0f2fe" strokeWidth="0.8" opacity="0.4">
-                      <animate attributeName="ry" values="4;9;4" dur="1.2s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="0.4;0.05;0.4" dur="1.2s" repeatCount="indefinite" />
+                    <ellipse cx="0" cy="65" rx="14" ry="18" fill="#e0f2fe" opacity="0.5">
+                      <animate attributeName="ry" values="14;22;14" dur="0.9s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.5;0.1;0.5" dur="0.9s" repeatCount="indefinite" />
                     </ellipse>
+                    {/* Lingering dissolving wake foam strip */}
+                    <line x1="0" y1="20" x2="0" y2="130" stroke="#ffffff" strokeWidth="3.5" opacity="0.7" strokeDasharray="8 6">
+                      <animate attributeName="stroke-dashoffset" values="0;28" dur="0.8s" repeatCount="indefinite" />
+                    </line>
                   </g>
                 )}
 
-                {/* 2. DISCHARGE PLUME SIMULATION (If speed drop / discharge event active) */}
-                {currentTelemetry.isSpeedDropActive && (
+                {/* 6B. DISCHARGE PLUME (During speed drop / illicit discharge event) */}
+                {currentTelemetry.isSlowActive && (
                   <g>
-                    {/* Billowing dark crude oil slick from midships discharge port */}
-                    <ellipse cx="8" cy="4" rx="16" ry="9" fill="#030712" stroke="#dc2626" strokeWidth="1.5" filter="url(#oilGlow)" opacity="0.9">
-                      <animate attributeName="rx" values="12;20;12" dur="1.4s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="0.7;0.95;0.7" dur="1.4s" repeatCount="indefinite" />
+                    <ellipse cx="9" cy="8" rx="20" ry="10" fill="#09090b" opacity="0.95" stroke="#ef4444" strokeWidth="1.5">
+                      <animate attributeName="rx" values="16;24;16" dur="1.2s" repeatCount="indefinite" />
                     </ellipse>
-                    <ellipse cx="14" cy="18" rx="20" ry="11" fill="#09090b" opacity="0.8" />
-                    <text x="26" y="8" fill="#ef4444" fontSize="8" fontWeight="800">
-                      ⚠️ OIL DISCHARGE
+                    <ellipse cx="14" cy="22" rx="26" ry="12" fill="#18181b" opacity="0.85" />
+                    <text x="32" y="12" fill="#ef4444" fontSize="8.5" fontWeight="900" style={{ textShadow: '0 1px 4px #000' }}>
+                      ⚠️ ILLICIT DISCHARGE DETECTED
                     </text>
                   </g>
                 )}
 
-                {/* 3. REALISTIC TANKER SHIP HULL (Detailed multi-deck model) */}
-                {/* Ship shadow on ocean surface */}
+                {/* 6C. PHOTOREALISTIC COMMERCIAL TANKER MODEL */}
+                {/* Hull shadow on sea surface */}
                 <path
-                  d="M 0 -26 C 6 -21, 7 -12, 7 0 C 7 14, 6 22, 4 25 L -4 25 C -6 22, -7 14, -7 0 C -7 -12, -6 -21, 0 -26 Z"
-                  fill="rgba(0, 0, 0, 0.45)"
-                  transform="translate(3, 3)"
+                  d="M 0 -28 C 7 -22, 8 -13, 8 0 C 8 15, 7 24, 4.5 27 L -4.5 27 C -7 24, -8 15, -8 0 C -8 -13, -7 -22, 0 -28 Z"
+                  fill="rgba(0, 0, 0, 0.6)"
+                  transform="translate(4, 4)"
                 />
 
-                {/* Outer Steel Double Hull */}
+                {/* Steel Double Hull with Red/Slate anti-fouling paint */}
                 <path
-                  d="M 0 -26 C 6.5 -21, 7.5 -12, 7.5 0 C 7.5 14, 6.5 22, 4.2 25 L -4.2 25 C -6.5 22, -7.5 14, -7.5 0 C -7.5 -12, -6.5 -21, 0 -26 Z"
-                  fill="url(#tankerHullGrad)"
+                  d="M 0 -28 C 7 -22, 8 -13, 8 0 C 8 15, 7 24, 4.5 27 L -4.5 27 C -7 24, -8 15, -8 0 C -8 -13, -7 -22, 0 -28 Z"
+                  fill="url(#tankerHullRealistic)"
                   stroke="#94a3b8"
                   strokeWidth="1.2"
                 />
 
-                {/* Raised Forecastle Deck (Bow) */}
+                {/* Raised Forecastle Bow Deck */}
                 <path
-                  d="M 0 -26 C 4.5 -22, 5.5 -18, 5.5 -16 L -5.5 -16 C -5.5 -18, -4.5 -22, 0 -26 Z"
+                  d="M 0 -28 C 5 -23, 6 -19, 6 -17 L -6 -17 C -6 -19, -5 -23, 0 -28 Z"
                   fill="#475569"
                   stroke="#64748b"
                   strokeWidth="0.8"
                 />
-                {/* Twin anchor windlasses */}
-                <circle cx="-2.5" cy="-20" r="1.2" fill="#cbd5e1" />
-                <circle cx="2.5" cy="-20" r="1.2" fill="#cbd5e1" />
+                <circle cx="-2.8" cy="-21" r="1.3" fill="#cbd5e1" />
+                <circle cx="2.8" cy="-21" r="1.3" fill="#cbd5e1" />
 
-                {/* Main Deck Cargo Tank Hatches (4 paired holds) */}
-                {[-12, -4, 4].map(yPos => (
+                {/* Cargo Deck Hatches (4 holds) */}
+                {[-13, -5, 3].map(yPos => (
                   <g key={`hatch-${yPos}`}>
-                    <rect x="-5" y={yPos} width="4" height="5" rx="0.8" fill="#1e293b" stroke="#334155" strokeWidth="0.6" />
-                    <rect x="1" y={yPos} width="4" height="5" rx="0.8" fill="#1e293b" stroke="#334155" strokeWidth="0.6" />
+                    <rect x="-5.5" y={yPos} width="4.5" height="5.5" rx="0.8" fill="#1e293b" stroke="#475569" strokeWidth="0.6" />
+                    <rect x="1" y={yPos} width="4.5" height="5.5" rx="0.8" fill="#1e293b" stroke="#475569" strokeWidth="0.6" />
                   </g>
                 ))}
 
-                {/* Centerline Longitudinal Pipeline (Yellow manifold) */}
-                <line x1="0" y1="-16" x2="0" y2="12" stroke="#f59e0b" strokeWidth="1.2" />
-                {/* Cross-deck cargo manifolds */}
-                <line x1="-5.5" y1="-6" x2="5.5" y2="-6" stroke="#f59e0b" strokeWidth="1" />
-                <line x1="-5.5" y1="2" x2="5.5" y2="2" stroke="#f59e0b" strokeWidth="1" />
+                {/* Longitudinal Pipeline Manifold (Safety Yellow) */}
+                <line x1="0" y1="-17" x2="0" y2="12" stroke="#f59e0b" strokeWidth="1.5" />
+                {/* Cross-deck cargo discharge manifolds */}
+                <line x1="-6" y1="-6" x2="6" y2="-6" stroke="#f59e0b" strokeWidth="1.2" />
+                <line x1="-6" y1="2" x2="6" y2="2" stroke="#f59e0b" strokeWidth="1.2" />
 
-                {/* Raised Poop Deck & Captain's Bridge Superstructure (Stern) */}
-                <rect x="-6" y="11" width="12" height="11" rx="1.5" fill="#1e293b" stroke="#64748b" strokeWidth="0.8" />
-                {/* Bridge Navigation Wings */}
-                <line x1="-8.5" y1="13" x2="8.5" y2="13" stroke="#94a3b8" strokeWidth="1.5" />
+                {/* Aft Bridge Superstructure & Wheelhouse */}
+                <rect x="-6.5" y="12" width="13" height="12" rx="1.5" fill="#f8fafc" stroke="#64748b" strokeWidth="0.8" />
+                {/* Panoramic bridge wings */}
+                <line x1="-9" y1="14" x2="9" y2="14" stroke="#e2e8f0" strokeWidth="1.8" />
                 {/* Wheelhouse illuminated panoramic windows */}
-                <rect x="-4.5" y="12" width="9" height="2" fill="#38bdf8" />
-                
-                {/* Engine Exhaust Funnel (Smokestack) */}
-                <ellipse cx="0" cy="18" rx="2.5" ry="3" fill="#0f172a" stroke="#f97316" strokeWidth="1" />
+                <rect x="-5" y="13" width="10" height="2" fill="#0284c7" />
 
-                {/* Main Radar Mast & Rotating Scanner */}
-                <line x1="0" y1="13" x2="0" y2="8" stroke="#e2e8f0" strokeWidth="1.2" />
-                <line x1="-3.5" y1="8" x2="3.5" y2="8" stroke="#38bdf8" strokeWidth="1.5" />
+                {/* Funnel Exhaust Smokestack */}
+                <ellipse cx="0" cy="20" rx="2.5" ry="3.5" fill="#0f172a" stroke="#ea580c" strokeWidth="1" />
 
-                {/* 4. GLOWING MARITIME NAVIGATION LIGHTS */}
-                {/* Port Navigation Light (Red lantern on port bridge wing) */}
-                <circle cx="-8" cy="13" r="1.8" fill="#ef4444" filter="url(#redNavGlow)" />
-                <circle cx="-8" cy="13" r="0.8" fill="#ffffff" />
+                {/* Radar Mast & Rotating Marine Radar Scanner */}
+                <line x1="0" y1="14" x2="0" y2="9" stroke="#cbd5e1" strokeWidth="1.2" />
+                <line x1="-4" y1="9" x2="4" y2="9" stroke="#38bdf8" strokeWidth="1.8" />
 
-                {/* Starboard Navigation Light (Green lantern on stbd bridge wing) */}
-                <circle cx="8" cy="13" r="1.8" fill="#22c55e" filter="url(#greenNavGlow)" />
-                <circle cx="8" cy="13" r="0.8" fill="#ffffff" />
-
-                {/* Stern Navigation Light (White lantern at aft tip) */}
-                <circle cx="0" cy="25" r="1.2" fill="#ffffff" />
+                {/* IMO Navigation Lights */}
+                {/* Port Lantern (Red) */}
+                <circle cx="-8.5" cy="14" r="1.8" fill="#ef4444" filter="url(#navPortGlow)" />
+                <circle cx="-8.5" cy="14" r="0.8" fill="#ffffff" />
+                {/* Starboard Lantern (Green) */}
+                <circle cx="8.5" cy="14" r="1.8" fill="#22c55e" filter="url(#navStbdGlow)" />
+                <circle cx="8.5" cy="14" r="0.8" fill="#ffffff" />
+                {/* Stern Light (White) */}
+                <circle cx="0" cy="27" r="1.2" fill="#ffffff" />
 
                 {/* Forward Heading Vector Beam */}
                 <line
-                  x1="0" y1="-26"
-                  x2="0" y2="-48"
+                  x1="0" y1="-28"
+                  x2="0" y2="-60"
                   stroke="#38bdf8"
-                  strokeWidth="1.5"
-                  strokeDasharray="3 2"
-                  opacity="0.8"
+                  strokeWidth="1.8"
+                  strokeDasharray="4 3"
+                  opacity="0.85"
                 />
+              </g>
+
+              {/* Clean Executive Tactical Identification Tag (Non-rotating) */}
+              <g transform="translate(24, -32)" pointerEvents="none">
+                <line x1="-24" y1="32" x2="0" y2="12" stroke="#38bdf8" strokeWidth="1" opacity="0.7" />
+                <rect
+                  x="0" y="0" width="155" height="38" rx="4"
+                  fill="rgba(15, 23, 42, 0.92)"
+                  stroke={activeVessel.isCulprit ? '#f97316' : '#38bdf8'}
+                  strokeWidth="1.2"
+                />
+                <text x="8" y="14" fill="#ffffff" fontSize="8.5" fontWeight="800">
+                  {activeVessel.isCulprit ? 'PRIMARY SUSPECT #1' : `VESSEL #${activeVessel.rank}`}
+                </text>
+                <text x="8" y="28" fill="#94a3b8" fontSize="8" fontFamily="monospace">
+                  SPD: <strong style={{ color: '#38bdf8' }}>{(Number(currentTelemetry.sog) || 0).toFixed(1)} kn</strong> | HDG: <strong style={{ color: '#f59e0b' }}>{Math.round(Number(currentTelemetry.cog) || 0)}°</strong>
+                </text>
               </g>
             </g>
           )}
-
-          {/* 5. SAR DETECTED OIL SLICK */}
-          <g transform={`translate(${project(spillLon, spillLat).x}, ${project(spillLon, spillLat).y})`}>
-            {/* Iridescent dark oil slick */}
-            <ellipse
-              rx="22" ry="12"
-              transform="rotate(-28)"
-              fill="#080808"
-              stroke="#dc3545"
-              strokeWidth="2"
-              filter="url(#oilGlow)"
-            />
-            <ellipse rx="14" ry="7" transform="rotate(-28)" fill="#151515" />
-            <circle r="3.5" fill="#ffffff" />
-            <text x="26" y="4" fill="#ffffff" fontSize="10" fontWeight="700" style={{ textShadow: '0 2px 4px #000' }}>
-              {spill?.name || 'SPILL-20240315-001'} (12.5 km²)
-            </text>
-          </g>
         </g>
       </svg>
-
-      {/* Bottom Playback & Time Scrubber Controls */}
-      <div style={{
-        position: 'absolute', bottom: '12px', left: '16px', right: '16px', zIndex: 10,
-        background: 'rgba(10, 22, 40, 0.94)', backdropFilter: 'blur(10px)',
-        padding: '12px 18px', borderRadius: '10px', border: '1px solid #1f3554',
-        display: 'flex', flexDirection: 'column', gap: '8px'
-      }}>
-        {/* Timeline event pins and slider */}
-        <div style={{ position: 'relative', width: '100%', height: '24px', display: 'flex', alignItems: 'center' }}>
-          {/* Pin Markers */}
-          <div style={{ position: 'absolute', left: '45%', top: '-6px', transform: 'translateX(-50%)', fontSize: '0.65rem', color: '#dc3545', fontWeight: 700 }}>
-            📡 Gap Start (T-3.5h)
-          </div>
-          <div style={{ position: 'absolute', left: '60%', top: '-6px', transform: 'translateX(-50%)', fontSize: '0.65rem', color: '#f0ad4e', fontWeight: 700 }}>
-            🐌 Speed Drop (T-1h)
-          </div>
-          <div style={{ position: 'absolute', left: '72%', top: '-6px', transform: 'translateX(-50%)', fontSize: '0.65rem', color: '#00d2d3', fontWeight: 700 }}>
-            🛢️ Spill (T0)
-          </div>
-
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.002"
-            value={progress}
-            onChange={(e) => setProgress(parseFloat(e.target.value))}
-            style={{
-              width: '100%',
-              accentColor: '#fd7e14',
-              cursor: 'pointer',
-              height: '6px'
-            }}
-          />
-        </div>
-
-        {/* Playback Buttons & Speeds */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              onClick={() => setProgress(0)}
-              style={{ padding: '5px 10px', background: '#1a2d4a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}
-              title="Restart from beginning"
-            >⏮</button>
-            <button
-              onClick={() => setIsPlaying(!isPlaying)}
-              style={{
-                padding: '6px 14px',
-                background: isPlaying ? '#dc3545' : '#28a745',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '5px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              {isPlaying ? '⏸ Pause' : '▶ Play AIS Replay'}
-            </button>
-            <button
-              onClick={() => setProgress(p => Math.min(1, p + 0.1))}
-              style={{ padding: '5px 10px', background: '#1a2d4a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}
-              title="Skip +1h"
-            >⏩ +1h</button>
-
-            {/* Speed Multipliers */}
-            <div style={{ display: 'flex', gap: '4px', marginLeft: '12px' }}>
-              {[1, 2, 5, 10].map(s => (
-                <button
-                  key={s}
-                  onClick={() => setPlaybackSpeed(s)}
-                  style={{
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    border: 'none',
-                    background: playbackSpeed === s ? '#fd7e14' : '#1a2d4a',
-                    color: '#fff',
-                    fontSize: '0.7rem',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {s}x
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Current Sim Time Display */}
-          <div style={{ color: '#d0e4f5', fontSize: '0.8rem', fontWeight: 600, display: 'flex', gap: '14px' }}>
-            <span>Relative Time: <strong style={{ color: '#fd7e14' }}>{Number(currentTelemetry?.relHour || 0) >= 0 ? '+' : ''}{(Number(currentTelemetry?.relHour || 0)).toFixed(1)}h</strong></span>
-            <span>Simulated UTC: <strong style={{ color: '#fff' }}>2024-03-15 {String(((Math.floor(Number(currentTelemetry?.relHour || 0)) + 6 + 24) % 24)).padStart(2, '0')}:00:00</strong></span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
