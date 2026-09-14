@@ -28,8 +28,8 @@ torchvision==0.17.0
 segmentation-models-pytorch==0.3.3
 scikit-learn==1.4.0
 
-# Drift Simulation
-opendrift==1.11.0
+# Drift Simulation (Euler Lagrangian advection)
+# opendrift==1.11.0
 
 # Charts / Reports
 weasyprint==62.0
