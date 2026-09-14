@@ -104,9 +104,9 @@ export const TACTICAL_AREA_BOUNDS = {
 // 3. National sovereign EEZ (Higher Authority Only)
 export const NATIONAL_BOUNDS = {
   national: {
-    minLon: 66.0, maxLon: 92.0, minLat: 6.0, maxLat: 26.0,
-    name: 'National EEZ (Higher Authority Only)',
-    seaLabel: 'ALL INDIA MARITIME EEZ'
+    minLon: 67.0, maxLon: 98.0, minLat: 6.0, maxLat: 37.5,
+    name: 'National Sovereign Territory & Maritime EEZ',
+    seaLabel: 'ALL INDIA MARITIME EEZ & NATIONAL WATERS'
   }
 };
 
@@ -372,7 +372,7 @@ export default function MapView({
         display: 'flex', gap: '12px', alignItems: 'center', fontSize: '0.78rem', color: '#1e293b'
       }}>
         <span style={{ fontWeight: 700, color: '#0b1e36', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <span>🗺️</span> Layers:
+          <span>️</span> Layers:
         </span>
         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 500 }}>
           <input
@@ -381,7 +381,7 @@ export default function MapView({
             onChange={(e) => setActiveLayers(l => ({ ...l, slicks: e.target.checked }))}
             style={{ accentColor: '#0b1e36' }}
           />
-          <span>🛰️ Slicks</span>
+          <span>️ Slicks</span>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 500 }}>
           <input
@@ -390,7 +390,7 @@ export default function MapView({
             onChange={(e) => setActiveLayers(l => ({ ...l, originCone: e.target.checked }))}
             style={{ accentColor: '#0b1e36' }}
           />
-          <span>🔍 Origin Cone</span>
+          <span> Origin Cone</span>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 500 }}>
           <input
@@ -399,7 +399,7 @@ export default function MapView({
             onChange={(e) => setActiveLayers(l => ({ ...l, futureDrift: e.target.checked }))}
             style={{ accentColor: '#0b1e36' }}
           />
-          <span>🌊 Drift Path</span>
+          <span> Drift Path</span>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 500 }}>
           <input
@@ -408,7 +408,7 @@ export default function MapView({
             onChange={(e) => setActiveLayers(l => ({ ...l, vessels: e.target.checked }))}
             style={{ accentColor: '#0b1e36' }}
           />
-          <span>🚢 AIS Tracks</span>
+          <span> AIS Tracks</span>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 500 }}>
           <input
@@ -426,7 +426,7 @@ export default function MapView({
             onChange={(e) => setActiveLayers(l => ({ ...l, sanctuaries: e.target.checked }))}
             style={{ accentColor: '#0b1e36' }}
           />
-          <span>🪸 Sanctuaries</span>
+          <span> Sanctuaries</span>
         </label>
       </div>
 
@@ -522,7 +522,7 @@ export default function MapView({
         />
         <div style={{ height: '14px', width: '1px', background: '#cbd5e1' }} />
         <span style={{ fontSize: '0.72rem', color: '#0369a1', fontWeight: 600 }}>
-          {resolvedMode === 'regional' ? '📍 Region: ' : (resolvedMode === 'national' ? '📍 Maritime Zone: ' : '📍 Tactical Area: ')}
+          {resolvedMode === 'regional' ? ' Region: ' : (resolvedMode === 'national' ? ' Maritime Zone: ' : ' Tactical Area: ')}
           <strong>{bounds.name}</strong>
         </span>
       </div>
@@ -538,7 +538,7 @@ export default function MapView({
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '1.1rem' }}>{selectedEntity.icon || '📍'}</span>
+              <span style={{ fontSize: '1.1rem' }}>{selectedEntity.icon || ''}</span>
               <strong style={{ color: '#0b1e36', fontSize: '0.9rem' }}>{selectedEntity.title}</strong>
             </div>
             <button
@@ -685,7 +685,7 @@ export default function MapView({
                 opacity="0.65"
               />
               <text x="24" y="585" fill="#0284c7" fontSize="9" fontWeight="700" opacity="0.85">
-                🛡️ 200 NM JURISDICTION LIMIT — {bounds.name.toUpperCase()}
+                ️ 200 NM JURISDICTION LIMIT — {bounds.name.toUpperCase()}
               </text>
             </g>
           )}
@@ -735,7 +735,7 @@ export default function MapView({
                   key={sanctuary.name}
                   style={{ cursor: 'pointer' }}
                   onClick={() => setSelectedEntity({
-                    icon: '🪸',
+                    icon: '',
                     title: sanctuary.name,
                     details: [
                       { label: 'Habitat Type', value: sanctuary.type },
@@ -777,7 +777,7 @@ export default function MapView({
                 strokeDasharray="5 3"
                 style={{ cursor: 'pointer' }}
                 onClick={() => setSelectedEntity({
-                  icon: '🔍',
+                  icon: '',
                   title: `Backward Drift Origin Cone (${targetSpill.name})`,
                   details: [
                     { label: 'Spill Incident', value: targetSpill.name },
@@ -877,7 +877,7 @@ export default function MapView({
                   transform={`translate(${currentPos.x}, ${currentPos.y})`}
                   style={{ cursor: 'pointer' }}
                   onClick={() => setSelectedEntity({
-                    icon: '🚢',
+                    icon: '',
                     title: `${vessel.name} (#${vessel.rank} Suspect)`,
                     details: [
                       { label: 'MMSI', value: vessel.mmsi },
@@ -929,7 +929,7 @@ export default function MapView({
                 onClick={() => {
                   onSelectSpill(spill);
                   setSelectedEntity({
-                    icon: '🛰️',
+                    icon: '️',
                     title: spill.name,
                     details: [
                       { label: 'Severity', value: (spill.severity || 'high').toUpperCase() },
