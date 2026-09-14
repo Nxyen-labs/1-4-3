@@ -1,14 +1,16 @@
-﻿# 🌊 AegisOcean: Satellite SAR Oil Spill Detection & AIS Vessel Attribution Platform
+# 🌊 SARVAS: Satellite SAR Oil Spill Detection & AIS Vessel Attribution Platform
+
+**SARVAS — From Slick to Suspect**
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115.0-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![MapLibre](https://img.shields.io/badge/MapLibre_GL-5.1.0-blue?style=for-the-badge&logo=maplibre&logoColor=white)](https://maplibre.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.2.0-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![PostGIS](https://img.shields.io/badge/PostGIS-3.4_/_PostgreSQL_16-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgis.net/)
 [![Vite](https://img.shields.io/badge/Vite-8.2-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Docker](https://img.shields.io/badge/Docker-Compose_Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
-> **An end-to-end maritime intelligence platform combining Sentinel-1 SAR satellite computer vision, backward/forward hydrodynamic drift modeling, real-time AIS dark vessel tracking, ecological vulnerability matrices, and multi-tier command & control dashboards.**
+> **SARVAS** (*Satellite Automated Reconnaissance & Vessel Attribution System*) is an end-to-end maritime intelligence platform combining Sentinel-1 SAR satellite computer vision, backward/forward hydrodynamic drift modeling, real-time AIS dark vessel tracking, sovereign EEZ territorial defense, NOS-DCP indicator species ecological risk matrices, and multi-tier command & control operational consoles.
 
 ---
 
@@ -16,13 +18,14 @@
 
 Illegal marine oil discharge (bilge dumping, tank washing, and catastrophic accidental spills) severely threatens coastal ecosystems, coral reefs, and fisheries. Traditional detection workflows suffer from high false-positive rates (algal blooms, low-wind sea slicks), lack of forensic backtracking, and inability to correlate detected slicks with culprit vessels.
 
-**AegisOcean** bridges satellite Earth observation and maritime law enforcement into an automated, actionable surveillance pipeline:
+**SARVAS** bridges satellite Earth observation and maritime law enforcement into an automated, actionable surveillance pipeline:
 
 1. **Detects & Segments** oil slicks from Synthetic Aperture Radar (SAR) imagery with deep learning U-Net models, discriminating true petroleum slicks from look-alikes.
 2. **Backtracks Drift Trajectories** using ocean current and surface wind vectors to determine the precise spatiotemporal point of discharge.
 3. **Identifies & Attributes Suspect Vessels** by ingesting live and historical AIS feeds, flagging dark ship anomalies (transponder blackouts, speed drops, sharp course deviations), and generating a ranked suspect score.
 4. **Evaluates Marine Ecological Impact** against high-resolution spatial layers of coral reefs, mangroves, Marine Protected Areas (MPAs), and Exclusive Economic Zone (EEZ) boundaries.
-5. **Empowers Multi-Agency Operations** through tailored role-based dashboards (Coast Guard, Regional Supervisors, Higher Maritime Authorities, and Public Safety) alongside court-ready PDF legal dossiers.
+5. **Interactive Sovereign Maritime GIS** with zero-collision labeling, regional raster tiles, and smooth zoom-out over sovereign waters and national port hubs.
+6. **Empowers Multi-Agency Operations** through tailored role-based dashboards (Coast Guard, Regional Supervisors, Higher Maritime Authorities, and Public Safety) alongside court-ready PDF legal dossiers.
 
 ---
 
