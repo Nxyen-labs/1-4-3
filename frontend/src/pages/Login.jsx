@@ -39,15 +39,21 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: '48px', height: '48px', borderRadius: '50%',
-            background: '#e0f2fe', fontSize: '1.5rem'
-          }}>
-            🛡️
-          </span>
-          <div style={{ marginTop: '8px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+          <img
+            src="/sarvas_logo.png"
+            alt="SARVAS Logo"
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '3px solid #0284c7',
+              boxShadow: '0 4px 16px rgba(2, 132, 199, 0.25)',
+              display: 'inline-block'
+            }}
+          />
+          <div style={{ marginTop: '10px' }}>
             <span style={{
               display: 'inline-block', background: '#0b1e36', color: '#ffffff',
               fontSize: '0.68rem', fontWeight: 700, padding: '3px 10px',
@@ -57,9 +63,9 @@ export default function Login() {
             </span>
           </div>
         </div>
-        <h1 style={{ textAlign: 'center', color: '#0b1e36' }}>Command Sign In</h1>
-        <p className="login-subtitle" style={{ textAlign: 'center', color: '#64748b' }}>
-          National Marine Disaster & Spill Response Portal
+        <h1 style={{ textAlign: 'center', color: '#0b1e36', margin: '0 0 6px 0' }}>SARVAS Command Sign In</h1>
+        <p className="login-subtitle" style={{ textAlign: 'center', color: '#0284c7', fontWeight: 700, letterSpacing: '0.6px' }}>
+          From Slick to Suspect
         </p>
 
         {error && (
