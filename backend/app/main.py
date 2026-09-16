@@ -24,10 +24,11 @@ app = FastAPI(
 )
 
 # CORS
-origins = settings.CORS_ORIGINS.split(",")
+origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,6 +52,11 @@ app.include_router(attribution_router)
 app.include_router(impact_router)
 app.include_router(dashboard_router)
 app.include_router(reports_router)
+
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "SARVAS Backend API", "docs": "/docs"}
 
 
 @app.get("/api/health")

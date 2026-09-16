@@ -12,6 +12,7 @@ sqlalchemy[asyncio]==2.0.35
 asyncpg==0.29.0
 geoalchemy2==0.15.0
 alembic==1.13.0
+aiosqlite==0.22.1
 
 # Data / Geospatial
 numpy==1.26.4
@@ -28,8 +29,8 @@ torchvision==0.17.0
 segmentation-models-pytorch==0.3.3
 scikit-learn==1.4.0
 
-# Drift Simulation
-opendrift==1.11.0
+# Drift Simulation (Euler Lagrangian advection)
+# opendrift==1.11.0
 
 # Charts / Reports
 weasyprint==62.0
