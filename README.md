@@ -97,8 +97,8 @@ Prerequisites: Docker Engine 24.0+ and Docker Compose v2.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/VaishnaviPatil-gif/Sarvas.git
-cd Sarvas
+git clone https://github.com/Nxyen-labs/1-4-3.git
+cd 1-4-3
 
 # 2. Build and launch infrastructure services
 docker compose up --build -d
