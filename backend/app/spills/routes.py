@@ -38,7 +38,11 @@ def spill_to_response(spill: Spill) -> dict:
         "sar_image_path": spill.sar_image_path,
         "mask_image_path": spill.mask_image_path,
         "model_confidence": spill.model_confidence,
-        "confidence_score": getattr(spill, "confidence_score", None) or (spill.model_confidence.get("oil") if isinstance(spill.model_confidence, dict) else None) or 0.88,
+        "confidence_score": getattr(spill, "confidence_score", None) or (
+            spill.model_confidence.get("final_confidence") if (isinstance(spill.model_confidence, dict) and spill.model_confidence.get("final_confidence") is not None)
+            else (spill.model_confidence.get("lookalike") if (isinstance(spill.model_confidence, dict) and spill.validation_status == "lookalike")
+            else (spill.model_confidence.get("oil") if isinstance(spill.model_confidence, dict) else None))
+        ) or 0.88,
         "centroid_lat": getattr(spill, "centroid_lat", None),
         "centroid_lon": getattr(spill, "centroid_lon", None),
         "slick_geojson": getattr(spill, "slick_geojson", None),
@@ -290,9 +294,12 @@ async def upload_sar_image(
     elongation_ratio = 2.8
     fragmentation_index = 1.5
     age_estimate = "hours"
-    model_confidence = {"oil": 0.91, "lookalike": 0.06, "no_oil": 0.03}
     multipoly = None
     mask = None
+    probs = None  # [3, H, W] softmax tensor from U-Net; None if no model
+    inference_source = "morphological_fallback"
+    import uuid
+    inference_id = uuid.uuid4().hex[:12]
 
     if os.path.exists(model_path):
         try:
@@ -302,6 +309,7 @@ async def upload_sar_image(
             mask = pred_mask
             multipoly = extract_oil_polygons(pred_mask, class_id=0, min_area_pixels=30)
             geom_stats = characterize_geometry(multipoly, pixel_size_m=pixel_pitch)
+            inference_source = "unet"
 
             if geom_stats["area_sq_km"] > 0:
                 area_sq_km = geom_stats["area_sq_km"]
@@ -310,24 +318,18 @@ async def upload_sar_image(
                 fragmentation_index = geom_stats["fragmentation_index"]
                 age_estimate = geom_stats["age_estimate"]
 
-            oil_conf = float(probs[0].mean())
-            look_conf = float(probs[1].mean())
-            sea_conf = float(probs[2].mean())
-            total_c = max(1e-6, oil_conf + look_conf + sea_conf)
-            model_confidence = {
-                "oil": round(oil_conf / total_c, 3),
-                "lookalike": round(look_conf / total_c, 3),
-                "no_oil": round(sea_conf / total_c, 3),
-            }
+            # NOTE: We do NOT compute model_confidence here.
+            # Probabilities are extracted once below after mask computation,
+            # then passed through compute_physics_confidence as the single source of truth.
         except Exception as e:
             print(f"[WARN] U-Net inference fallback to morphological analysis: {e}")
+            probs = None
 
     thresh = None
-    if multipoly is None or multipoly.is_empty:
-        # Morphological Otsu fallback
+    if multipoly is None or multipoly.is_empty or area_sq_km < 0.05:
+        # Morphological Otsu fallback / refinement
         blurred = cv2.GaussianBlur(img, (5, 5), 0)
         _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        mask = thresh
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         valid_contours = [c for c in contours if cv2.contourArea(c) > 30]
         polys = []
@@ -337,18 +339,29 @@ async def upload_sar_image(
                 p = Polygon(pts)
                 if p.is_valid and not p.is_empty:
                     polys.append(p)
-        multipoly = MultiPolygon(polys) if polys else MultiPolygon([Polygon([[10, 10], [50, 10], [50, 50], [10, 50]])])
-        total_area_pixels = sum(p.area for p in multipoly.geoms)
-        area_sq_km = round(float((total_area_pixels * (pixel_pitch ** 2)) / 1e6), 2)
-        total_perim_pixels = sum(p.length for p in multipoly.geoms)
-        perimeter_km = round(float((total_perim_pixels * pixel_pitch) / 1e3), 2)
-        num_components = max(1, len(multipoly.geoms))
-        fragmentation_index = round(float(num_components / max(area_sq_km, 0.1)), 2)
-        elongation_ratio = 2.5
-        age_estimate = "fresh" if fragmentation_index < 1.0 else "hours" if fragmentation_index < 5.0 else "day"
+        if polys:
+            multipoly = MultiPolygon(polys)
+            mask = thresh
+            total_area_pixels = sum(p.area for p in multipoly.geoms)
+            area_sq_km = round(float((total_area_pixels * (pixel_pitch ** 2)) / 1e6), 2)
+            total_perim_pixels = sum(p.length for p in multipoly.geoms)
+            perimeter_km = round(float((total_perim_pixels * pixel_pitch) / 1e3), 2)
+            num_components = max(1, len(multipoly.geoms))
+            fragmentation_index = round(float(num_components / max(area_sq_km, 0.1)), 2)
+            elongation_ratio = 2.5
+            age_estimate = "fresh" if fragmentation_index < 1.0 else "hours" if fragmentation_index < 5.0 else "day"
+        elif multipoly is None or multipoly.is_empty:
+            # Truly no slick detected (Clean Sea)
+            multipoly = None
+            mask = None
+            area_sq_km = 0.0
+            perimeter_km = 0.0
+            fragmentation_index = 0.0
+            elongation_ratio = 1.0
+            age_estimate = "none"
 
     # Convert pixel polygon to georeferenced GeoJSON MultiPolygon
-    slick_geojson = pixel_polygons_to_geojson(multipoly, georef)
+    slick_geojson = pixel_polygons_to_geojson(multipoly, georef) if multipoly else None
     if not slick_geojson or slick_geojson.get("type") != "MultiPolygon":
         if slick_geojson and slick_geojson.get("type") == "Polygon":
             slick_geojson = {"type": "MultiPolygon", "coordinates": [slick_geojson["coordinates"]]}
@@ -374,55 +387,87 @@ async def upload_sar_image(
     wind_speed = float(np.hypot(w_u, w_v))
     wg = eval_wind_gate(wind_speed)
 
-    # Dynamic Physics & ML Confidence Calculation from genuine image pixels
+    # --- SINGLE probability flow: extract raw probs → physics engine → final result ---
     mask_bool = np.zeros(img.shape[:2], dtype=bool)
-    if mask is not None:
+    if thresh is not None and (thresh > 0).sum() > 20:
+        mask_bool = (thresh > 0)
+    elif mask is not None:
         if mask.dtype == bool:
             mask_bool = mask
-        elif (mask == 0).sum() > 20:
-            mask_bool = (mask == 0)
+        elif (mask == 255).sum() > 20:
+            mask_bool = (mask == 255)
         else:
-            mask_bool = (mask > 0)
-    elif thresh is not None:
-        mask_bool = (thresh > 0)
+            # In U-Net pred_mask: 0=Oil, 1=Look-alike, 2=No oil (Sea)
+            slick_pixels = (mask == 0) | (mask == 1)
+            if slick_pixels.sum() > 20:
+                mask_bool = slick_pixels
 
     sar_features = extract_sar_features(img, mask_bool, pixel_size_m=pixel_pitch)
+
+    # Extract per-class raw probabilities from U-Net softmax (class ordering: 0=Oil, 1=Look-alike, 2=Sea)
     if probs is not None and probs.ndim >= 3:
         if mask_bool is not None and mask_bool.sum() > 10:
             h_p, w_p = probs.shape[1], probs.shape[2]
             mask_res = cv2.resize(mask_bool.astype(np.uint8), (w_p, h_p), interpolation=cv2.INTER_NEAREST) > 0
             if mask_res.sum() > 5:
-                raw_oil_prob = float(probs[0][mask_res].mean())
-                raw_look_prob = float(probs[1][mask_res].mean())
-                raw_sea_prob = float(probs[2][mask_res].mean())
+                p0 = float(probs[0][mask_res].mean())
+                p1 = float(probs[1][mask_res].mean())
+                p2 = float(probs[2][mask_res].mean())
+                tot_p = max(1e-6, p0 + p1 + p2)
+                raw_oil_prob = p0 / tot_p
+                raw_look_prob = p1 / tot_p
+                raw_sea_prob = p2 / tot_p
             else:
-                raw_oil_prob = float(probs[0].max())
+                raw_oil_prob = float(probs[0].mean())
                 raw_look_prob = float(probs[1].mean())
-                raw_sea_prob = float(max(0.01, 1.0 - raw_oil_prob - raw_look_prob))
+                raw_sea_prob = float(probs[2].mean())
         else:
-            raw_oil_prob = float(probs[0].max())
+            raw_oil_prob = float(probs[0].mean())
             raw_look_prob = float(probs[1].mean())
-            raw_sea_prob = float(max(0.01, 1.0 - raw_oil_prob - raw_look_prob))
+            raw_sea_prob = float(probs[2].mean())
     else:
-        raw_oil_prob = min(0.95, max(0.60, 0.55 + sar_features["contrast_db"] * 0.07))
+        # Morphological fallback: heuristic probabilities from SAR features
+        raw_oil_prob = min(0.95, max(0.10, 0.55 + sar_features["contrast_db"] * 0.07))
         raw_look_prob = max(0.02, 0.15 - sar_features["edge_sharpness"] * 0.005)
         raw_sea_prob = max(0.01, 1.0 - raw_oil_prob - raw_look_prob)
 
     unet_probs = {"oil": raw_oil_prob, "lookalike": raw_look_prob, "sea": raw_sea_prob}
+
+    # === SINGLE SOURCE OF TRUTH: compute_physics_confidence ===
     phys_conf = compute_physics_confidence(unet_probs, sar_features, wind_speed_ms=wind_speed)
-    final_oil_conf = round(float(phys_conf["confidence_pct"]) / 100.0, 3)
-    final_look_conf = round(max(0.02, (1.0 - final_oil_conf) * 0.7), 3)
-    final_sea_conf = round(max(0.01, 1.0 - final_oil_conf - final_look_conf), 3)
+
+    # Read final results directly from physics engine — no re-computation
+    predicted_class = phys_conf["final_class"]
+    final_probs = phys_conf["final_probabilities"]
+    final_confidence = phys_conf["final_confidence"]
+
+    # Derive validation_status from final_class
+    CLASS_TO_STATUS = {"Oil": "detected", "Look-alike": "lookalike", "No oil": "dismissed"}
+    val_status = CLASS_TO_STATUS.get(predicted_class, "detected")
+    is_lookalike_scene = (predicted_class == "Look-alike")
+    calc_conf_score = final_confidence
+
+    # Log the inference result
+    print(f"[INFERENCE] id={inference_id} file={file.filename} source={inference_source} "
+          f"raw={phys_conf.get('raw_probabilities')} final={final_probs} "
+          f"class={predicted_class} confidence={final_confidence} status={val_status}")
 
     model_confidence = {
-        "oil": final_oil_conf,
-        "lookalike": final_look_conf,
-        "no_oil": final_sea_conf,
+        "oil": final_probs.get("oil", 0.0),
+        "lookalike": final_probs.get("lookalike", 0.0),
+        "sea": final_probs.get("sea", 0.0),
+        "raw_probabilities": phys_conf.get("raw_probabilities", {}),
+        "final_probabilities": final_probs,
+        "final_class": predicted_class,
+        "final_confidence": final_confidence,
+        "classification": predicted_class,
         "contrast_db": sar_features.get("contrast_db", 0.0),
         "edge_sharpness": sar_features.get("edge_sharpness", 0.0),
         "interior_std": sar_features.get("interior_std", 0.0),
-        "classification": phys_conf.get("class", "Oil"),
         "top_factors": phys_conf.get("top_contributing_factors", []),
+        "inference_id": inference_id,
+        "inference_source": inference_source,
+        "georef_method": georef_method,
     }
 
     # Heuristic Age Window
@@ -475,11 +520,11 @@ async def upload_sar_image(
         spill.sar_sha256 = sar_sha256
         spill.data_provenance = "real"
         spill.severity = severity
-        spill.validation_status = "detected"
+        spill.validation_status = val_status
         spill.region = region
         spill.sar_image_path = saved_path
         spill.model_confidence = model_confidence
-        spill.confidence_score = final_oil_conf
+        spill.confidence_score = calc_conf_score
     else:
         spill = Spill(
             name=spill_name,
@@ -508,11 +553,11 @@ async def upload_sar_image(
             sar_sha256=sar_sha256,
             data_provenance="real",
             severity=severity,
-            validation_status="detected",
+            validation_status=val_status,
             region=region,
             sar_image_path=saved_path,
             model_confidence=model_confidence,
-            confidence_score=final_oil_conf,
+            confidence_score=calc_conf_score,
         )
         db.add(spill)
 
@@ -591,7 +636,8 @@ async def upload_sar_image(
     if run_attribution.lower() == "true":
         from app.attribution.service import evaluate_spill_suspects
         try:
-            await evaluate_spill_suspects(spill, db, top_n=3)
+            if not is_lookalike_scene and predicted_class != "No oil":
+                await evaluate_spill_suspects(spill, db, top_n=3)
         except Exception as e:
             print(f"[WARN] Attribution run failed: {e}")
 
