@@ -5971,11 +5971,11 @@ export const INDIAN_PORTS = [
   { name: 'Haldia / Kolkata', lon: 88.08, lat: 22.03, state: 'West Bengal' }
 ];
 
-// Strategic primary ports for clean, high-priority surveillance section
+// Strategic primary ports for clean, high-priority surveillance section (inland directional labels)
 export const IMPORTANT_PORTS = [
   { name: 'Kandla (Deendayal)', shortName: 'Kandla Port', lon: 70.22, lat: 23.01, state: 'Gujarat', labelDir: 'north' },
   { name: 'Mumbai Port', shortName: 'Mumbai Port', lon: 72.85, lat: 18.95, state: 'Maharashtra', labelDir: 'east' },
-  { name: 'Kochi (Cochin)', shortName: 'Kochi Port', lon: 76.27, lat: 9.97, state: 'Kerala', labelDir: 'west' },
+  { name: 'Kochi (Cochin)', shortName: 'Kochi Port', lon: 76.27, lat: 9.97, state: 'Kerala', labelDir: 'east' },
   { name: 'Chennai Port', shortName: 'Chennai Port', lon: 80.29, lat: 13.08, state: 'Tamil Nadu', labelDir: 'east' },
   { name: 'Visakhapatnam', shortName: 'Vizag Port', lon: 83.30, lat: 17.70, state: 'Andhra Pradesh', labelDir: 'east' }
 ];
@@ -5983,62 +5983,87 @@ export const IMPORTANT_PORTS = [
 export const MARINE_SANCTUARIES = [
   {
     name: 'Marine National Park (Gulf of Kutch)',
-    lon: 69.45,
-    lat: 22.48,
-    type: 'Coral Reef & Mangrove Biosphere',
+    lon: 69.50,
+    lat: 22.35,
+    type: 'Coral Reef & Protected Sands',
     status: 'Zero-Dispersant Zone'
   },
   {
     name: 'Gulf of Mannar Marine Biosphere',
-    lon: 79.15,
-    lat: 9.18,
-    type: 'Coral Atolls & Dugong Sanctuary',
+    lon: 78.95,
+    lat: 9.05,
+    type: 'Coral Atolls & Marine Reserve',
     status: 'Schedule-I Habitat'
   },
   {
     name: 'Gahirmatha Marine Sanctuary',
-    lon: 86.95,
-    lat: 20.72,
-    type: 'Olive Ridley Turtle Rookery',
+    lon: 87.00,
+    lat: 20.70,
+    type: 'Olive Ridley Turtle Sandy Spits',
     status: 'Annual Arribada Corridor'
   },
   {
     name: 'Sundarbans Biosphere Reserve',
-    lon: 88.85,
+    lon: 88.64,
     lat: 21.80,
-    type: 'Tidal Mangroves & Tiger Reserve',
+    type: 'Tidal Mangroves & Mudflats',
     status: 'World Heritage Ramsar Site'
+  },
+  {
+    name: 'Lakshadweep Coral Atolls',
+    lon: 72.64,
+    lat: 10.57,
+    type: 'Coral Atolls & Lagoon Sands',
+    status: 'Schedule-I Coral Sanctuary'
   }
 ];
 
-// Core Schedule-I Marine Protected Areas critical for environmental impact section
+// Core Schedule-I Marine Protected Areas & Sands critical for environmental protection
 export const IMPORTANT_SANCTUARIES = [
   {
     name: 'Marine National Park (Gulf of Kutch)',
-    shortLabel: 'Marine NP (Kutch)',
-    lon: 69.45,
-    lat: 22.48,
-    type: 'Coral Reef & Mangrove Biosphere',
+    shortLabel: 'Marine NP & Coral Sands',
+    lon: 69.50,
+    lat: 22.35,
+    type: 'Coral Reef & Protected Sands',
     status: 'Zero-Dispersant Zone',
     labelDir: 'south'
   },
   {
     name: 'Gulf of Mannar Marine Biosphere',
-    shortLabel: 'Gulf of Mannar',
-    lon: 79.15,
-    lat: 9.18,
-    type: 'Coral Atolls & Dugong Sanctuary',
+    shortLabel: 'Gulf of Mannar Corals',
+    lon: 78.95,
+    lat: 9.05,
+    type: 'Coral Atolls & Marine Reserve',
     status: 'Schedule-I Habitat',
     labelDir: 'south'
   },
   {
     name: 'Sundarbans Biosphere Reserve',
-    shortLabel: 'Sundarbans',
-    lon: 88.85,
+    shortLabel: 'Sundarbans Mangroves',
+    lon: 88.64,
     lat: 21.80,
-    type: 'Tidal Mangroves & Tiger Reserve',
+    type: 'Tidal Mangroves & Mudflats',
     status: 'World Heritage Ramsar Site',
     labelDir: 'north'
+  },
+  {
+    name: 'Gahirmatha Marine Sanctuary',
+    shortLabel: 'Gahirmatha Turtle Sands',
+    lon: 87.00,
+    lat: 20.70,
+    type: 'Olive Ridley Sandy Spits',
+    status: 'Annual Arribada Reserve',
+    labelDir: 'east'
+  },
+  {
+    name: 'Lakshadweep Coral Atolls',
+    shortLabel: 'Lakshadweep Coral Sands',
+    lon: 72.64,
+    lat: 10.57,
+    type: 'Coral Atolls & Lagoon Sands',
+    status: 'Schedule-I Coral Sanctuary',
+    labelDir: 'west'
   }
 ];
 
