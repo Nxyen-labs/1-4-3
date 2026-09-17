@@ -2,11 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Map, Marker } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {
-  INDIA_MAINLAND_POLYGON,
-  INDIA_ISLANDS_POLYGONS,
   IMPORTANT_PORTS,
   IMPORTANT_SANCTUARIES
 } from './indiaMapData';
+import indiaCoralSands from './indiaCoralSands.json';
 
 // Clean free OpenStreetMap-based style
 const MAP_STYLE = {
@@ -46,105 +45,6 @@ export default function RealIndiaMap({
   const markersRef = useRef([]);
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  // 1. Sovereign Mainland Boundary GeoJSON
-  const mainlandGeoJSON = {
-    type: 'Feature',
-    geometry: {
-      type: 'LineString',
-      coordinates: INDIA_MAINLAND_POLYGON || []
-    }
-  };
-
-  // 2. Island Territories GeoJSON (Andaman & Nicobar, Lakshadweep)
-  const islandsGeoJSON = {
-    type: 'FeatureCollection',
-    features: (INDIA_ISLANDS_POLYGONS || []).map((poly, idx) => ({
-      type: 'Feature',
-      properties: { id: idx },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [poly]
-      }
-    }))
-  };
-
-  // 3. 200 nm Sovereign Exclusive Economic Zone (EEZ)
-  const eezGeoJSON = {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        properties: { name: 'Mainland EEZ 200 nm' },
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [67.0, 23.8], [67.2, 21.0], [68.2, 17.5], [70.5, 13.5],
-            [73.5, 8.5], [75.5, 5.5], [77.5, 4.8], [80.0, 5.2],
-            [84.0, 7.0], [87.5, 11.5], [89.5, 17.5], [89.8, 21.5]
-          ]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: { name: 'Andaman & Nicobar EEZ 200 nm' },
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [91.2, 14.2], [90.8, 10.5], [92.0, 6.2], [95.0, 6.2],
-            [95.6, 10.5], [95.2, 14.2], [91.2, 14.2]
-          ]
-        }
-      }
-    ]
-  };
-
-  // 4. CMEMS Ocean Current Streams
-  const currentsGeoJSON = {
-    type: 'FeatureCollection',
-    features: [
-      {
-        type: 'Feature',
-        properties: { name: 'Arabian Sea Drift' },
-        geometry: {
-          type: 'LineString',
-          coordinates: [[69.0, 22.0], [70.5, 17.0], [73.5, 10.0]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: { name: 'Konkan Coastal Jet' },
-        geometry: {
-          type: 'LineString',
-          coordinates: [[70.5, 20.5], [72.0, 16.0], [74.8, 9.0]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: { name: 'Malabar Inshore Stream' },
-        geometry: {
-          type: 'LineString',
-          coordinates: [[71.8, 19.2], [73.2, 14.8], [76.0, 8.5]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: { name: 'Bay of Bengal Gyre' },
-        geometry: {
-          type: 'LineString',
-          coordinates: [[85.5, 8.5], [87.0, 14.5], [85.0, 19.5]]
-        }
-      },
-      {
-        type: 'Feature',
-        properties: { name: 'Coromandel Flow' },
-        geometry: {
-          type: 'LineString',
-          coordinates: [[83.5, 10.0], [85.0, 15.5], [83.0, 19.0]]
-        }
-      }
-    ]
-  };
-
   // Initialize MapLibre — locked / static view framing India cleanly
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -180,79 +80,87 @@ export default function RealIndiaMap({
         bearing: 0
       });
 
-      // 1. Sovereign Mainland Outline Layer
+      // Authentic Marine Protected Areas, Coral Reefs & Sand Reserve Polygons (Real Data)
       try {
-        map.addSource('india-mainland', { type: 'geojson', data: mainlandGeoJSON });
+        map.addSource('india-coral-sands', {
+          type: 'geojson',
+          data: indiaCoralSands
+        });
+
+        // Translucent polygon fill
         map.addLayer({
-          id: 'india-mainland-outline',
-          type: 'line',
-          source: 'india-mainland',
+          id: 'coral-sands-fill',
+          type: 'fill',
+          source: 'india-coral-sands',
+          layout: {
+            visibility: mapLayers.sanctuaries !== false ? 'visible' : 'none'
+          },
           paint: {
-            'line-color': '#0284c7',
-            'line-width': 1.6,
-            'line-opacity': 0.7
+            'fill-color': [
+              'match',
+              ['get', 'name'],
+              'Sundarbans Biosphere Reserve', '#059669',
+              'Gahirmatha Marine Sanctuary', '#d97706',
+              'Lakshadweep Coral Sands', '#0d9488',
+              '#10b981'
+            ],
+            'fill-opacity': 0.45
           }
         });
-      } catch (err) {
-        console.warn('Mainland source/layer error:', err);
-      }
 
-      // 2. Island Territories Layer
-      try {
-        map.addSource('india-islands', { type: 'geojson', data: islandsGeoJSON });
+        // Crisp polygon boundary outline
         map.addLayer({
-          id: 'india-islands-outline',
+          id: 'coral-sands-outline',
           type: 'line',
-          source: 'india-islands',
+          source: 'india-coral-sands',
+          layout: {
+            visibility: mapLayers.sanctuaries !== false ? 'visible' : 'none'
+          },
           paint: {
-            'line-color': '#0284c7',
-            'line-width': 1.5,
-            'line-opacity': 0.7
+            'line-color': [
+              'match',
+              ['get', 'name'],
+              'Sundarbans Biosphere Reserve', '#047857',
+              'Gahirmatha Marine Sanctuary', '#b45309',
+              'Lakshadweep Coral Sands', '#0f766e',
+              '#059669'
+            ],
+            'line-width': 1.4,
+            'line-opacity': 0.85
           }
         });
-      } catch (err) {
-        console.warn('Islands source/layer error:', err);
-      }
 
-      // 3. 200 nm Sovereign EEZ Boundary Layer
-      try {
-        map.addSource('eez-boundary', { type: 'geojson', data: eezGeoJSON });
-        map.addLayer({
-          id: 'eez-line',
-          type: 'line',
-          source: 'eez-boundary',
-          layout: { visibility: mapLayers.eez !== false ? 'visible' : 'none' },
-          paint: {
-            'line-color': '#1d4ed8',
-            'line-width': 2.2,
-            'line-dasharray': [5, 3],
-            'line-opacity': 0.9
-          }
+        // Interactive click on real coral & sand polygons
+        map.on('click', 'coral-sands-fill', (e) => {
+          if (!e.features || !e.features.length) return;
+          const feat = e.features[0];
+          const p = feat.properties || {};
+          setSelectedIncident({
+            spill_name: p.name || 'Marine Protected Habitat',
+            severity: p.type || 'Schedule-I Sanctuary',
+            priority: 'Eco-Critical',
+            affected_area_sq_km: p.area_sq_km ? `${p.area_sq_km} km²` : 'Schedule-I Core',
+            coast_proximity_km: 'Protected Marine & Coral Sands',
+            overlaps_coral: true,
+            nearest_mpa_name: p.name,
+            nearest_mpa_distance_km: '0 km (Direct Habitat)',
+            centroid_lat: e.lngLat.lat,
+            centroid_lon: e.lngLat.lng,
+            vulnerability_details: p.notes || `Authentic GIS polygon feature from national marine reserve data. Coordinates: ${e.lngLat.lat.toFixed(3)}°N, ${e.lngLat.lng.toFixed(3)}°E.`
+          });
+        });
+
+        map.on('mouseenter', 'coral-sands-fill', () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', 'coral-sands-fill', () => {
+          map.getCanvas().style.cursor = '';
         });
       } catch (err) {
-        console.warn('EEZ source/layer error:', err);
+        console.warn('Coral & Sands source/layer error:', err);
       }
 
-      // 4. CMEMS Hydrodynamic Ocean Current Streamlines
-      try {
-        map.addSource('cmems-currents', { type: 'geojson', data: currentsGeoJSON });
-        map.addLayer({
-          id: 'currents-line',
-          type: 'line',
-          source: 'cmems-currents',
-          layout: { visibility: mapLayers.currents !== false ? 'visible' : 'none' },
-          paint: {
-            'line-color': '#0d9488',
-            'line-width': 2.4,
-            'line-dasharray': [6, 4],
-            'line-opacity': 0.9
-          }
-        });
-      } catch (err) {
-        console.warn('Currents source/layer error:', err);
-      }
-
-      // 5. Mount Clean, Non-Colliding Markers
+      // Mount Clean, Non-Colliding Markers
       renderDomMarkers(map);
 
       setMapLoaded(true);
@@ -269,14 +177,14 @@ export default function RealIndiaMap({
   const getDirectionalStyle = (dir) => {
     switch (dir) {
       case 'west':
-        return 'right: 18px; top: 50%; transform: translateY(-50%);';
+        return 'right: calc(100% + 8px); top: 50%; transform: translateY(-50%);';
       case 'east':
-        return 'left: 18px; top: 50%; transform: translateY(-50%);';
+        return 'left: calc(100% + 8px); top: 50%; transform: translateY(-50%);';
       case 'north':
-        return 'bottom: 18px; left: 50%; transform: translateX(-50%);';
+        return 'bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);';
       case 'south':
       default:
-        return 'top: 18px; left: 50%; transform: translateX(-50%);';
+        return 'top: calc(100% + 8px); left: 50%; transform: translateX(-50%);';
     }
   };
 
@@ -302,10 +210,8 @@ export default function RealIndiaMap({
       const isSelected = selectedIncident?.centroid_lat === sp.lat && selectedIncident?.centroid_lon === sp.lon;
       if (isSelected) el.classList.add('active');
 
-      // Smart label direction to avoid collisions
-      // Gulf of Kutch / Mumbai High point West into Arabian Sea
-      // Palk Strait / Bay of Bengal point East / South
-      const labelDir = sp.lon < 75.0 ? 'west' : (sp.lat < 12.0 ? 'east' : 'south');
+      // Non-overlapping label placement
+      const labelDir = sp.labelDir || (sp.lon < 75.0 ? 'west' : (sp.lat < 12.0 ? 'east' : 'west'));
       const dirStyle = getDirectionalStyle(labelDir);
 
       const shortName = sp.name
@@ -316,11 +222,11 @@ export default function RealIndiaMap({
 
       el.innerHTML = `
         <div style="position: relative; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;">
-          <div style="position: absolute; inset: -3px; border-radius: 50%; border: 2px solid ${coreColor}; animation: sarvasPulse 2s infinite;"></div>
-          <div style="width: 9px; height: 9px; border-radius: 50%; background: ${coreColor}; border: 1.5px solid #ffffff; box-shadow: 0 0 8px ${coreColor}; z-index: 2;"></div>
-          <div class="sarvas-label" style="position: absolute; ${dirStyle} background: rgba(15, 23, 42, 0.94); color: #ffffff; padding: 2.5px 7px; border-radius: 5px; font-size: 9px; font-weight: 700; white-space: nowrap; border: 1px solid ${coreColor}; box-shadow: 0 2px 8px rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; gap: 4px; pointer-events: none;">
+          <div style="position: absolute; inset: -4px; border-radius: 50%; border: 2px solid ${coreColor}; animation: sarvasPulse 2s infinite; pointer-events: none;"></div>
+          <div style="width: 10px; height: 10px; border-radius: 50%; background: ${coreColor}; border: 1.5px solid #ffffff; box-shadow: 0 0 10px ${coreColor}; z-index: 2;"></div>
+          <div class="sarvas-label" style="position: absolute; ${dirStyle} background: rgba(15, 23, 42, 0.94); color: #ffffff; padding: 2.5px 7px; border-radius: 5px; font-size: 8.5px; font-weight: 700; white-space: nowrap; border: 1px solid ${coreColor}; box-shadow: 0 3px 10px rgba(0,0,0,0.45); backdrop-filter: blur(4px); display: flex; align-items: center; gap: 4px; pointer-events: none;">
             <span>${shortName}</span>
-            <span style="font-size: 7.5px; padding: 0.5px 3px; border-radius: 2px; background: ${coreColor}; color: #fff; font-weight: 800; text-transform: uppercase;">${sp.severity}</span>
+            <span style="font-size: 7.5px; padding: 0.5px 3.5px; border-radius: 2px; background: ${coreColor}; color: #fff; font-weight: 800; text-transform: uppercase;">${sp.severity}</span>
           </div>
         </div>
       `;
@@ -368,9 +274,10 @@ export default function RealIndiaMap({
 
       el.innerHTML = `
         <div style="position: relative; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">
-          <div style="width: 9px; height: 9px; border-radius: 50%; background: #1d4ed8; border: 1.5px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); z-index: 2;"></div>
-          <div class="sarvas-label" style="position: absolute; ${dirStyle} background: rgba(15, 23, 42, 0.94); color: #eff6ff; padding: 2px 6px; border-radius: 4px; font-size: 8.5px; font-weight: 700; white-space: nowrap; border: 1px solid #3b82f6; box-shadow: 0 2px 6px rgba(0,0,0,0.3); backdrop-filter: blur(4px); pointer-events: none;">
-            ${p.shortName || p.name}
+          <div style="width: 9px; height: 9px; border-radius: 50%; background: #1d4ed8; border: 1.5px solid #ffffff; box-shadow: 0 1px 5px rgba(29,78,216,0.5); z-index: 2;"></div>
+          <div class="sarvas-label" style="position: absolute; ${dirStyle} background: rgba(15, 23, 42, 0.94); color: #eff6ff; padding: 2px 6px; border-radius: 4px; font-size: 8.5px; font-weight: 700; white-space: nowrap; border: 1px solid #3b82f6; box-shadow: 0 2px 8px rgba(0,0,0,0.35); backdrop-filter: blur(4px); display: flex; align-items: center; gap: 4px; pointer-events: none;">
+            <span>${p.shortName || p.name}</span>
+            <span style="font-size: 7px; padding: 0.5px 3px; border-radius: 2px; background: #1e40af; color: #93c5fd; font-weight: 800;">PORT</span>
           </div>
         </div>
       `;
@@ -400,7 +307,7 @@ export default function RealIndiaMap({
       markersRef.current.push(marker);
     });
 
-    // C. Schedule-I Marine Sanctuaries (Gulf of Kutch, Gulf of Mannar, Sundarbans)
+    // C. Schedule-I Marine Sanctuaries & Sands
     IMPORTANT_SANCTUARIES.forEach(s => {
       const el = document.createElement('div');
       el.className = 'sarvas-map-marker marker-sanctuary';
@@ -418,9 +325,10 @@ export default function RealIndiaMap({
 
       el.innerHTML = `
         <div style="position: relative; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">
-          <div style="width: 9px; height: 9px; border-radius: 50%; background: #059669; border: 1.5px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); z-index: 2;"></div>
-          <div class="sarvas-label" style="position: absolute; ${dirStyle} background: rgba(15, 23, 42, 0.94); color: #ecfdf5; padding: 2px 6px; border-radius: 4px; font-size: 8.5px; font-weight: 700; white-space: nowrap; border: 1px solid #10b981; box-shadow: 0 2px 6px rgba(0,0,0,0.3); backdrop-filter: blur(4px); pointer-events: none;">
-            ${s.shortLabel || s.name}
+          <div style="width: 9px; height: 9px; border-radius: 50%; background: #059669; border: 1.5px solid #ffffff; box-shadow: 0 1px 5px rgba(5,150,105,0.5); z-index: 2;"></div>
+          <div class="sarvas-label" style="position: absolute; ${dirStyle} background: rgba(15, 23, 42, 0.94); color: #ecfdf5; padding: 2px 6px; border-radius: 4px; font-size: 8.5px; font-weight: 700; white-space: nowrap; border: 1px solid #10b981; box-shadow: 0 2px 8px rgba(0,0,0,0.35); backdrop-filter: blur(4px); display: flex; align-items: center; gap: 4px; pointer-events: none;">
+            <span>${s.shortLabel || s.name}</span>
+            <span style="font-size: 7px; padding: 0.5px 3px; border-radius: 2px; background: #065f46; color: #6ee7b7; font-weight: 800;">MPA & SANDS</span>
           </div>
         </div>
       `;
@@ -431,9 +339,9 @@ export default function RealIndiaMap({
         e.stopPropagation();
         setSelectedIncident({
           spill_name: s.name,
-          severity: 'Protected MPA',
+          severity: 'Protected MPA & Sands',
           priority: 'Eco-Critical',
-          affected_area_sq_km: 'Schedule-I',
+          affected_area_sq_km: 'Schedule-I Core',
           coast_proximity_km: 'Coastal / Intertidal',
           overlaps_coral: true,
           nearest_mpa_name: s.type,
@@ -456,11 +364,11 @@ export default function RealIndiaMap({
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
 
-    if (map.getLayer('eez-line')) {
-      map.setLayoutProperty('eez-line', 'visibility', mapLayers.eez ? 'visible' : 'none');
+    if (map.getLayer('coral-sands-fill')) {
+      map.setLayoutProperty('coral-sands-fill', 'visibility', mapLayers.sanctuaries !== false ? 'visible' : 'none');
     }
-    if (map.getLayer('currents-line')) {
-      map.setLayoutProperty('currents-line', 'visibility', mapLayers.currents ? 'visible' : 'none');
+    if (map.getLayer('coral-sands-outline')) {
+      map.setLayoutProperty('coral-sands-outline', 'visibility', mapLayers.sanctuaries !== false ? 'visible' : 'none');
     }
 
     markersRef.current.forEach(m => {
@@ -620,18 +528,18 @@ export default function RealIndiaMap({
           color: '#0369a1',
           letterSpacing: '0.4px'
         }}>
-          India Maritime EEZ
+          India Marine & Coral Sanctuaries
         </span>
         <span style={{
           width: 7,
           height: 7,
           borderRadius: '50%',
-          background: '#22c55e',
-          boxShadow: '0 0 6px #22c55e',
+          background: '#10b981',
+          boxShadow: '0 0 6px #10b981',
           display: 'inline-block',
           marginLeft: 2
         }} />
-        <span style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 700 }}>Live Feed</span>
+        <span style={{ fontSize: '0.72rem', color: '#047857', fontWeight: 700 }}>Real GIS Feed</span>
       </div>
 
       {/* Map source attribution — bottom right */}
