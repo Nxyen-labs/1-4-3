@@ -104,6 +104,15 @@ def extract_sar_features(
     interior_std = round(float(np.std(slick_pixels)), 2)
     area_sq_km = round(float(total_area_px * (pixel_size_m ** 2) / 1e6), 4)
 
+    # 6. Connected component analysis and scene coverage %
+    total_scene_px = float(h * w)
+    coverage_pct = round(float(total_area_px / total_scene_px * 100.0), 2)
+    num_labels, labels_im, stats, _ = cv2.connectedComponentsWithStats(mask_u8)
+    num_components = max(1, num_labels - 1)
+    areas = stats[1:, cv2.CC_STAT_AREA] if num_labels > 1 else [0]
+    max_component_px = max(areas) if len(areas) > 0 else 0
+    largest_cc_pct = round(float(max_component_px / total_scene_px * 100.0), 2)
+
     return {
         "contrast_db": contrast_db,
         "edge_sharpness": edge_sharpness,
@@ -111,6 +120,9 @@ def extract_sar_features(
         "shape_complexity": shape_complexity,
         "area_sq_km": area_sq_km,
         "interior_std": interior_std,
+        "coverage_pct": coverage_pct,
+        "num_components": num_components,
+        "largest_cc_pct": largest_cc_pct,
     }
 
 
@@ -122,7 +134,27 @@ def compute_physics_confidence(
     """
     Combines U-Net prediction probabilities with physics rules to derive final classification,
     confidence %, and the top 3 contributing factors with their values.
+
+    Canonical class ordering: 0=Oil, 1=Look-alike, 2=Sea (Clean Sea / No oil)
+
+    Returns:
+        {
+            "final_class": "Oil" | "Look-alike" | "No oil",
+            "final_confidence": float,  # == final_probabilities[final_class key]
+            "raw_probabilities": {"oil": ..., "lookalike": ..., "sea": ...},
+            "final_probabilities": {"oil": ..., "lookalike": ..., "sea": ...},  # sums to 1.0
+            "top_contributing_factors": [...],
+            "features": {...},
+            "lookalike_cause": str | None,
+            "wind_speed_ms": float | None,
+        }
+
+    Invariants enforced:
+        1. final_class == argmax(final_probabilities)
+        2. final_confidence == final_probabilities[class_key_for(final_class)]
+        3. sum(final_probabilities.values()) == 1.0 (within floating point tolerance)
     """
+    # --- Parse raw U-Net probabilities ---
     if isinstance(unet_probs, np.ndarray):
         if unet_probs.ndim >= 3:
             raw_oil_prob = float(unet_probs[0].mean())
@@ -133,13 +165,26 @@ def compute_physics_confidence(
             raw_lookalike_prob = float(unet_probs[1])
             raw_sea_prob = float(unet_probs[2])
         else:
-            raw_oil_prob, raw_lookalike_prob, raw_sea_prob = 0.88, 0.08, 0.04
+            raw_oil_prob, raw_lookalike_prob, raw_sea_prob = 0.33, 0.33, 0.34
     elif isinstance(unet_probs, dict):
         raw_oil_prob = float(unet_probs.get("oil", 0.0))
         raw_lookalike_prob = float(unet_probs.get("lookalike", 0.0))
         raw_sea_prob = float(unet_probs.get("sea", unet_probs.get("no_oil", 0.0)))
     else:
-        raw_oil_prob, raw_lookalike_prob, raw_sea_prob = 0.88, 0.08, 0.04
+        raw_oil_prob, raw_lookalike_prob, raw_sea_prob = 0.33, 0.33, 0.34
+
+    # Normalize raw probabilities to sum to 1.0
+    raw_total = raw_oil_prob + raw_lookalike_prob + raw_sea_prob
+    if raw_total > 1e-6:
+        raw_oil_prob /= raw_total
+        raw_lookalike_prob /= raw_total
+        raw_sea_prob /= raw_total
+
+    raw_probabilities = {
+        "oil": round(raw_oil_prob, 4),
+        "lookalike": round(raw_lookalike_prob, 4),
+        "sea": round(raw_sea_prob, 4),
+    }
 
     cfg = PHYSICS_CONFIG
     factors = []
@@ -163,9 +208,8 @@ def compute_physics_confidence(
             "weight": cfg["weights"]["wind_consistency"]
         })
     elif wind_speed_ms < cfg["wind_low_thresh_ms"]:
-        # Low wind calm-water look-alike
         wind_score = max(0.1, wind_speed_ms / cfg["wind_low_thresh_ms"] * 0.4)
-        lookalike_cause = "Low wind calm-water dampening (<2.5 m/s)"
+        lookalike_cause = f"Low wind calm-water dampening ({wind_speed_ms:.1f} m/s < {cfg['wind_low_thresh_ms']} m/s)"
         factors.append({
             "factor": "ERA5 Wind Gate (Look-alike Risk)",
             "value": f"{wind_speed_ms:.1f} m/s (Low wind: dampens capillary waves)",
@@ -173,7 +217,6 @@ def compute_physics_confidence(
             "weight": cfg["weights"]["wind_consistency"]
         })
     elif wind_speed_ms > cfg["wind_high_thresh_ms"]:
-        # High wind signature suppression
         wind_score = max(0.2, 1.0 - (wind_speed_ms - cfg["wind_high_thresh_ms"]) * 0.1)
         factors.append({
             "factor": "ERA5 Wind Gate (Wave Suppression)",
@@ -182,11 +225,10 @@ def compute_physics_confidence(
             "weight": cfg["weights"]["wind_consistency"]
         })
     else:
-        # Ideal wind band (2.5 - 10 m/s)
         wind_score = 1.0
         factors.append({
             "factor": "ERA5 Wind Gate (Optimal)",
-            "value": f"{wind_speed_ms:.1f} m/s (Within 2.5–10 m/s detection window)",
+            "value": f"{wind_speed_ms:.1f} m/s (Within {cfg['wind_low_thresh_ms']}–{cfg['wind_high_thresh_ms']} m/s detection window)",
             "score": 1.0,
             "weight": cfg["weights"]["wind_consistency"]
         })
@@ -211,42 +253,118 @@ def compute_physics_confidence(
         "weight": cfg["weights"]["edge_sharpness"]
     })
 
-    # Factor 5: Elongation / Flow alignment
+    # Factor 5: Morphology / Aspect Ratio & Plume Cohesion
     elong = features.get("elongation_ratio", 1.0)
-    elong_score = min(1.0, max(0.1, elong / 3.0))
+    num_comp = features.get("num_components", 1)
+    cov_pct = features.get("coverage_pct", 0.0)
+
+    # Cohesive linear plume (ship wake) gets high score; highly fragmented amorphous patch gets low score
+    if elong >= 2.5 and num_comp <= 10:
+        morphology_score = 1.0
+        morphology_desc = f"{elong:.1f}:1 aspect ratio, {num_comp} plume component(s) (Linear moving vessel wake)"
+    elif num_comp > 30 or elong < 1.4:
+        morphology_score = max(0.05, 0.40 - min(0.35, (num_comp / 200.0) * 0.35))
+        morphology_desc = f"{elong:.1f}:1 aspect ratio, {num_comp} fragments (Amorphous natural calm/film)"
+    else:
+        morphology_score = min(1.0, max(0.1, elong / 3.0))
+        morphology_desc = f"{elong:.1f}:1 elongation ratio"
+
     factors.append({
-        "factor": "Slick Aspect Ratio",
-        "value": f"{elong:.1f}:1 elongation ratio",
-        "score": elong_score,
+        "factor": "Slick Morphology & Cohesion",
+        "value": morphology_desc,
+        "score": morphology_score,
         "weight": cfg["weights"]["shape_complexity"]
     })
 
-    # Calculate final weighted confidence score for Oil
+    # Calculate weighted oil confidence score from physics factors
     total_score = sum(f["score"] * f["weight"] for f in factors)
     total_weights = sum(f["weight"] for f in factors)
-    final_oil_conf = total_score / max(total_weights, 1e-6)
+    physics_oil_score = total_score / max(total_weights, 1e-6)
 
-    # Determine final predicted class
-    has_slick = features.get("area_sq_km", 0.0) > 0.05
-    if not has_slick or (raw_sea_prob > 0.85 and raw_oil_prob < 0.20):
+    # --- Determine final predicted class ---
+    has_slick = (features.get("area_sq_km", 0.0) > 0.05) and (features.get("contrast_db", 0.0) > 1.0)
+
+    # Step 4 Sanity Check: Implausibly large scene coverage or extreme fragmentation
+    is_implausibly_large_calm = (
+        cov_pct > 50.0 or 
+        (cov_pct > 35.0 and num_comp > 30 and elong < 2.0)
+    )
+
+    if not has_slick:
         predicted_class = "No oil"
-        confidence_pct = round(max(raw_sea_prob * 100, 85.0), 1)
+    elif is_implausibly_large_calm:
+        predicted_class = "Look-alike"
+        lookalike_cause = f"Amorphous wide calm water / natural film ({cov_pct:.1f}% scene coverage, {num_comp} fragments, {elong:.1f}:1 aspect ratio)"
+        factors.append({
+            "factor": "Scene Coverage & Cohesion Check",
+            "value": f"{cov_pct:.1f}% coverage, {num_comp} fragments (Implausibly large for tanker discharge)",
+            "score": 0.05,
+            "weight": 0.20
+        })
     elif wind_speed_ms is not None and wind_speed_ms < cfg["wind_low_thresh_ms"] and raw_oil_prob < 0.65:
         predicted_class = "Look-alike"
-        confidence_pct = round(max(70.0, (1.0 - wind_score) * 100), 1)
         if not lookalike_cause:
-            lookalike_cause = "Low wind / biogenic film"
-    elif raw_lookalike_prob > raw_oil_prob or final_oil_conf < 0.40:
+            lookalike_cause = f"Low wind ({wind_speed_ms:.1f} m/s) / biogenic film"
+    elif raw_lookalike_prob > raw_oil_prob or physics_oil_score < 0.40 or (elong < 1.4 and features.get("contrast_db", 0.0) < 3.0):
         predicted_class = "Look-alike"
-        confidence_pct = round(max(raw_lookalike_prob * 100, (1.0 - final_oil_conf) * 100), 1)
         if not lookalike_cause:
             lookalike_cause = "Morphological / low contrast signature"
     else:
         predicted_class = "Oil"
-        confidence_pct = round(final_oil_conf * 100, 1)
+
+    # --- Build final probabilities from physics-fused scores ---
+    # The dominant class gets the physics-weighted confidence; remaining classes
+    # share the residual proportionally to their raw U-Net values.
+    CLASS_KEY_MAP = {"Oil": "oil", "Look-alike": "lookalike", "No oil": "sea"}
+    dominant_key = CLASS_KEY_MAP[predicted_class]
+
+    if predicted_class == "Oil":
+        dominant_score = physics_oil_score
+    elif predicted_class == "Look-alike":
+        # Lookalike confidence: complement of physics oil score, bounded
+        dominant_score = max(0.55, min(0.98, 1.0 - physics_oil_score))
+    else:  # No oil
+        dominant_score = max(0.55, min(0.98, raw_sea_prob))
+
+    dominant_score = round(min(0.98, max(0.50, dominant_score)), 4)
+
+    # Distribute remainder to non-dominant classes proportionally to raw probs
+    remainder = 1.0 - dominant_score
+    non_dominant_keys = [k for k in ("oil", "lookalike", "sea") if k != dominant_key]
+    raw_map = {"oil": raw_oil_prob, "lookalike": raw_lookalike_prob, "sea": raw_sea_prob}
+    non_dom_total = sum(raw_map[k] for k in non_dominant_keys)
+
+    final_probs = {}
+    final_probs[dominant_key] = dominant_score
+    if non_dom_total > 1e-6:
+        for k in non_dominant_keys:
+            final_probs[k] = round(max(0.01, remainder * raw_map[k] / non_dom_total), 4)
+    else:
+        for i, k in enumerate(non_dominant_keys):
+            final_probs[k] = round(max(0.01, remainder * (0.6 if i == 0 else 0.4)), 4)
+
+    # Normalize to exactly 1.0
+    fp_total = sum(final_probs.values())
+    for k in final_probs:
+        final_probs[k] = round(final_probs[k] / fp_total, 4)
+    # Fix rounding: assign residual to dominant
+    rounding_err = 1.0 - sum(final_probs.values())
+    final_probs[dominant_key] = round(final_probs[dominant_key] + rounding_err, 4)
+
+    # --- Enforce invariant: final_class == argmax(final_probabilities) ---
+    actual_argmax = max(final_probs, key=final_probs.get)
+    if actual_argmax != dominant_key:
+        # Physics override created a non-dominant class; swap to make it dominant
+        old_dom = final_probs[dominant_key]
+        old_max = final_probs[actual_argmax]
+        final_probs[dominant_key] = old_max
+        final_probs[actual_argmax] = old_dom
+
+    final_confidence = round(final_probs[dominant_key], 4)
+    confidence_pct = round(final_confidence * 100, 1)
 
     # Top 3 contributing factors sorted by absolute impact (score * weight)
-    sorted_factors = sorted(factors, key=lambda x: x["weight"], reverse=True)[:3]
+    sorted_factors = sorted(factors, key=lambda x: x["score"] * x["weight"], reverse=True)[:3]
     top_3 = [{
         "factor": sf["factor"],
         "value": sf["value"],
@@ -254,10 +372,17 @@ def compute_physics_confidence(
     } for sf in sorted_factors]
 
     return {
-        "class": predicted_class,
+        "final_class": predicted_class,
+        "final_confidence": final_confidence,
         "confidence_pct": confidence_pct,
+        "raw_probabilities": raw_probabilities,
+        "final_probabilities": final_probs,
+        # Legacy keys for backward compatibility
+        "class": predicted_class,
+        "probabilities": final_probs,
         "top_contributing_factors": top_3,
         "features": features,
         "lookalike_cause": lookalike_cause,
         "wind_speed_ms": wind_speed_ms,
     }
+
