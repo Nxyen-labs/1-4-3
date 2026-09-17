@@ -15,11 +15,12 @@ _CACHED_IMG_SIZE = 512
 
 
 def load_model(model_path, device=None):
-    """Load trained U-Net model from checkpoint (cached singleton)."""
+    """Load trained U-Net model from checkpoint (cached singleton with minimal RAM footprint)."""
     global _CACHED_MODEL, _CACHED_IMG_SIZE
     if _CACHED_MODEL is not None:
         return _CACHED_MODEL, _CACHED_IMG_SIZE
 
+    import gc
     import torch
     import segmentation_models_pytorch as smp
 
@@ -31,7 +32,10 @@ def load_model(model_path, device=None):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    checkpoint = torch.load(model_path, map_location=device)
+    try:
+        checkpoint = torch.load(model_path, map_location=device, mmap=True)
+    except Exception:
+        checkpoint = torch.load(model_path, map_location=device)
 
     model = smp.Unet(
         encoder_name=checkpoint.get("encoder", "resnet34"),
@@ -43,13 +47,19 @@ def load_model(model_path, device=None):
     model.load_state_dict(checkpoint["model_state_dict"])
     model.to(device)
     model.eval()
+
+    img_sz = checkpoint.get("image_size", 512)
+    del checkpoint
+    gc.collect()
+
     _CACHED_MODEL = model
-    _CACHED_IMG_SIZE = checkpoint.get("image_size", 512)
+    _CACHED_IMG_SIZE = img_sz
     return _CACHED_MODEL, _CACHED_IMG_SIZE
 
 
 def predict_mask(model, image_input, image_size=512, device=None):
     """Run inference on a single SAR image (filepath or numpy array). Returns predicted class mask + probabilities."""
+    import gc
     import torch
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -90,11 +100,13 @@ def predict_mask(model, image_input, image_size=512, device=None):
     # To tensor [1, 1, H, W]
     tensor = torch.from_numpy(resized).unsqueeze(0).unsqueeze(0).to(device)
 
-    with torch.no_grad():
+    with torch.inference_mode():
         output = model(tensor)  # [1, 3, H, W]
         probs = torch.softmax(output, dim=1)  # [1, 3, H, W]
         pred = output.argmax(dim=1).squeeze(0).cpu().numpy()  # [H, W]
         probs_np = probs.squeeze(0).cpu().numpy()  # [3, H, W]
+        del tensor, output, probs
+        gc.collect()
 
     # Resize back to original resolution
     pred_full = cv2.resize(pred.astype(np.uint8), (original_w, original_h), interpolation=cv2.INTER_NEAREST)
