@@ -23,7 +23,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
 from scipy.stats import gaussian_kde
 import cv2
-from shapely.geometry import Point, MultiPoint, Polygon, MultiPolygon, LineString, MultiLineString, shape
+from shapely.geometry import Point, MultiPoint, Polygon, MultiPolygon, LineString, MultiLineString, shape, box
 from shapely.prepared import prep
 from shapely.ops import unary_union
 
@@ -473,22 +473,26 @@ def simulate_drift(
 
             # Coastline collision check
             if prep_coast is not None and mls_coast is not None:
-                for local_i, global_i in enumerate(active_idx):
-                    old_pt = (act_lons[local_i], act_lats[local_i])
-                    new_pt = (next_lons[local_i], next_lats[local_i])
-                    seg = LineString([old_pt, new_pt])
-                    if prep_coast.intersects(seg):
-                        inter = mls_coast.intersection(seg)
-                        if not inter.is_empty:
-                            if inter.geom_type == "Point":
-                                next_lons[local_i] = inter.x
-                                next_lats[local_i] = inter.y
-                            elif hasattr(inter, "geoms"):
-                                first_pt = inter.geoms[0]
-                                if hasattr(first_pt, "x"):
-                                    next_lons[local_i] = first_pt.x
-                                    next_lats[local_i] = first_pt.y
-                        beached[global_i] = True
+                min_lon, max_lon = min(float(np.min(act_lons)), float(np.min(next_lons))), max(float(np.max(act_lons)), float(np.max(next_lons)))
+                min_lat, max_lat = min(float(np.min(act_lats)), float(np.min(next_lats))), max(float(np.max(act_lats)), float(np.max(next_lats)))
+                step_box = box(min_lon, min_lat, max_lon, max_lat)
+                if prep_coast.intersects(step_box):
+                    for local_i, global_i in enumerate(active_idx):
+                        old_pt = (act_lons[local_i], act_lats[local_i])
+                        new_pt = (next_lons[local_i], next_lats[local_i])
+                        seg = LineString([old_pt, new_pt])
+                        if prep_coast.intersects(seg):
+                            inter = mls_coast.intersection(seg)
+                            if not inter.is_empty:
+                                if inter.geom_type == "Point":
+                                    next_lons[local_i] = inter.x
+                                    next_lats[local_i] = inter.y
+                                elif hasattr(inter, "geoms"):
+                                    first_pt = inter.geoms[0]
+                                    if hasattr(first_pt, "x"):
+                                        next_lons[local_i] = first_pt.x
+                                        next_lats[local_i] = first_pt.y
+                            beached[global_i] = True
 
             lats[active_idx] = next_lats
             lons[active_idx] = next_lons

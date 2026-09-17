@@ -38,6 +38,9 @@ app = FastAPI(
 
 # CORS
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+for default_origin in ("https://sarvas.vercel.app", "http://localhost:5173", "http://127.0.0.1:5173"):
+    if default_origin not in origins:
+        origins.append(default_origin)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

@@ -10,10 +10,23 @@ from shapely.geometry import Polygon, MultiPolygon
 CLASS_NAMES = {0: "Oil", 1: "Look-alike", 2: "No oil"}
 
 
+_CACHED_MODEL = None
+_CACHED_IMG_SIZE = 512
+
+
 def load_model(model_path, device=None):
-    """Load trained U-Net model from checkpoint."""
+    """Load trained U-Net model from checkpoint (cached singleton)."""
+    global _CACHED_MODEL, _CACHED_IMG_SIZE
+    if _CACHED_MODEL is not None:
+        return _CACHED_MODEL, _CACHED_IMG_SIZE
+
     import torch
     import segmentation_models_pytorch as smp
+
+    try:
+        torch.set_num_threads(1)
+    except Exception:
+        pass
 
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,7 +43,9 @@ def load_model(model_path, device=None):
     model.load_state_dict(checkpoint["model_state_dict"])
     model.to(device)
     model.eval()
-    return model, checkpoint.get("image_size", 512)
+    _CACHED_MODEL = model
+    _CACHED_IMG_SIZE = checkpoint.get("image_size", 512)
+    return _CACHED_MODEL, _CACHED_IMG_SIZE
 
 
 def predict_mask(model, image_input, image_size=512, device=None):

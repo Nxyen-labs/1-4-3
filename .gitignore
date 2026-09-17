@@ -53,6 +53,7 @@ backend/.env.*
 !backend/.env.example
 frontend/.env.local
 frontend/.env.production.local
+!frontend/.env.production
 
 # --- Local Databases & Runtime Locks ---
 *.db

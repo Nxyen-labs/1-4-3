@@ -1,19 +1,23 @@
 import socket
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
-from app.config import settings
+from app.config import settings, BACKEND_DIR
 
 db_url = settings.DATABASE_URL
+
+if "sqlite" in db_url and "./oilspill.db" in db_url:
+    db_file = BACKEND_DIR / "oilspill.db"
+    db_url = db_url.replace("./oilspill.db", db_file.as_posix())
 
 # If PostgreSQL is configured on localhost, test if port 5432 is open.
 # If not open, gracefully fallback to local standalone storage so the app works out-of-the-box.
 if "postgresql" in db_url and ("localhost" in db_url or "127.0.0.1" in db_url):
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.5)
         if sock.connect_ex(("127.0.0.1", 5432)) != 0:
             print("[Notice] Local PostgreSQL port 5432 is not active. Using local database (oilspill.db).")
-            db_url = "sqlite+aiosqlite:///./oilspill.db"
+            db_file = BACKEND_DIR / "oilspill.db"
+            db_url = f"sqlite+aiosqlite:///{db_file.as_posix()}"
         sock.close()
     except Exception:
         pass
