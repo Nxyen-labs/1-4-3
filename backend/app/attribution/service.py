@@ -99,7 +99,7 @@ def _utc(d: datetime) -> datetime:
 # Traffic reconstruction & filtering
 # --------------------------------------------------------------------------- #
 
-async def reconstruct_traffic(db: AsyncSession, cone: Polygon, t_start: datetime, t_end: datetime) -> Dict[int, pd.DataFrame]:
+async def reconstruct_traffic(db: AsyncSession, cone: Polygon, t_start: datetime, t_end: datetime, spill_id: Optional[int] = None) -> Dict[int, pd.DataFrame]:
     """All AIS points in [t_start - context, t_end + context] within the cone's bbox, grouped by vessel."""
     search = cone.buffer(CONE_BUFFER_NM * 2 / NM_PER_DEG)  # generous bbox so gaps around the cone are captured
     minx, miny, maxx, maxy = search.bounds
@@ -123,24 +123,30 @@ async def reconstruct_traffic(db: AsyncSession, cone: Polygon, t_start: datetime
             num_points = 90
             step_min = 5
             start_t = t_start - timedelta(minutes=30)
+            sid = spill_id or int(abs(c_lat * 100 + c_lon * 10))
 
             vessel_by_mmsi = {v.mmsi: v for v in all_vessels}
+            tanker_candidates = [v for v in all_vessels if (v.vessel_type or '').lower() in ('tanker', 'crude oil tanker')] or all_vessels
+            other_candidates = [v for v in all_vessels if (v.vessel_type or '').lower() not in ('tanker', 'crude oil tanker')] or all_vessels
 
             # Map regional geographic sectors to distinct primary suspects and characteristics
             if c_lat > 21.5:
                 # Gujarat (Gulf of Kutch)
-                suspect_vessel = vessel_by_mmsi.get("419009009") or all_vessels[0]  # MT KUTCH VOYAGER
-                transit_vessel = vessel_by_mmsi.get("419008008") or all_vessels[1]  # TUG SAMRAT
-                gap_start_step, gap_len_steps = 35, 26  # 130 min blackout
-                min_sog = 0.6
-                post_course = 145.0
+                suspect_vessel = vessel_by_mmsi.get("419009009") or tanker_candidates[sid % len(tanker_candidates)]  # MT KUTCH VOYAGER
+                transit_vessel = vessel_by_mmsi.get("419008008") or other_candidates[sid % len(other_candidates)]  # TUG SAMRAT
+                gap_start_step = 32 + (sid % 6)
+                gap_len_steps = 20 + (sid % 12)  # 100-160 min blackout
+                min_sog = 0.5 + (sid % 5) * 0.15
+                post_course = float((140 + sid * 17) % 360)
             elif 17.5 <= c_lat <= 21.5 and c_lon < 75.0:
                 # Mumbai / West Coast (Arabian Sea)
-                suspect_vessel = vessel_by_mmsi.get("419001001") or all_vessels[0]  # MT ARABIAN STAR
-                transit_vessel = vessel_by_mmsi.get("419002002") or all_vessels[1]  # MV OCEAN PRIDE
-                gap_start_step, gap_len_steps = 36, 22  # 110 min blackout
-                min_sog = 1.1
-                post_course = 165.0
+                # Rotate across available tankers based on spill_id so different incidents have distinct culprits
+                suspect_vessel = tanker_candidates[sid % len(tanker_candidates)]
+                transit_vessel = other_candidates[sid % len(other_candidates)]
+                gap_start_step = 33 + (sid % 5)
+                gap_len_steps = 18 + (sid % 10)  # 90-140 min blackout
+                min_sog = 0.7 + (sid % 6) * 0.12
+                post_course = float((155 + sid * 23) % 360)
             elif c_lat < 12.0 and c_lon < 77.5:
                 # Kerala / Cochin
                 suspect_vessel = vessel_by_mmsi.get("419011011") or all_vessels[0]  # MV KOCHI PIONEER
@@ -340,6 +346,18 @@ async def evaluate_spill_suspects(spill: Spill, db: AsyncSession, top_n: int = 5
     """
     from app.config import settings
 
+    # Natural look-alike phenomenon (specular calm water, biogenic surfactant film).
+    # Under MARPOL Annex I, no illegal vessel discharge attribution applies.
+    is_lookalike = (
+        getattr(spill, "validation_status", "") == "lookalike"
+        or (spill.model_confidence and spill.model_confidence.get("final_class") == "Look-alike")
+    )
+    if is_lookalike:
+        await db.execute(delete(SuspectScore).where(SuspectScore.spill_id == spill.id))
+        await db.execute(delete(AnomalyFlag).where(AnomalyFlag.spill_id == spill.id))
+        await db.commit()
+        return []
+
     drift_res = await db.execute(
         select(DriftSimulation)
         .where(DriftSimulation.spill_id == spill.id, DriftSimulation.direction == "backward")
@@ -353,7 +371,7 @@ async def evaluate_spill_suspects(spill: Spill, db: AsyncSession, top_n: int = 5
         window_source = f"operator_override_{origin_window_hours}h"
     window_hours = max(0.5, (t_end - t_start).total_seconds() / 3600.0)
 
-    tracks = await reconstruct_traffic(db, cone, t_start, t_end)
+    tracks = await reconstruct_traffic(db, cone, t_start, t_end, spill_id=spill.id)
 
     # -- filter ------------------------------------------------------------- #
     candidates: Dict[int, dict] = {}
