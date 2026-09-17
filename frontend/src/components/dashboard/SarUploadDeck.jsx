@@ -126,7 +126,10 @@ export default function SarUploadDeck({ onSpillUploaded, onNavigate }) {
       clearTimeout(stageTimer2);
       clearTimeout(stageTimer3);
       setProgressStage(0);
-      const detail = err.response?.data?.detail || err.message || 'Failed to process SAR imagery.';
+      let detail = err.response?.data?.detail || err.message || 'Failed to process SAR imagery.';
+      if (err.message === 'Network Error' || err.response?.status === 502 || err.response?.status === 503) {
+        detail = 'Cloud server is waking up from inactivity (Render free tier spin-up). Please wait 10 seconds and click Run again.';
+      }
       setErrorMessage(`Ingestion Error: ${detail}`);
     } finally {
       setIsProcessing(false);

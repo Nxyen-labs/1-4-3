@@ -20,6 +20,13 @@ RUN pip install --no-cache-dir torch==2.2.0 torchvision==0.17.0 --index-url http
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Invalidate layer cache for application code
+ARG BUILD_VERSION=20260917-2
+ENV BUILD_VERSION=${BUILD_VERSION}
+
 COPY . .
 
-CMD ["sh", "-c", "python -m scripts.seed_demo_data || true; exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+EXPOSE 8000
+EXPOSE 10000
+
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -23,6 +23,7 @@ pyproj==3.6.1
 rasterio==1.3.10
 opencv-python-headless==4.9.0.80
 xarray==2024.9.0
+netcdf4>=1.6.5
 pillow>=10.2.0
 
 # ML

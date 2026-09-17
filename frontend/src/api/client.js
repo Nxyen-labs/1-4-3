@@ -20,6 +20,7 @@ const API_URL = getApiUrl();
 
 const client = axios.create({
   baseURL: API_URL,
+  timeout: 120000, // 120s timeout to allow Render free tier containers to cold boot
   headers: { 'Content-Type': 'application/json' },
 });
 

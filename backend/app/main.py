@@ -9,10 +9,12 @@ from app.config import settings
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     print("[INFO] Oil Spill Detection System - Starting up...")
+    import asyncio
     try:
-        from app.database import engine
+        from app.database import engine, Base
         from sqlalchemy import text
         async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
             try:
                 await conn.execute(text("ALTER TABLE spills ADD COLUMN confidence_score FLOAT DEFAULT 0.88"))
             except Exception:
@@ -23,6 +25,21 @@ async def lifespan(app: FastAPI):
                 pass
     except Exception as e:
         print(f"[Notice] DB migration check: {e}")
+
+    async def _seed_background():
+        try:
+            from app.database import async_session
+            from app.auth.models import User
+            from sqlalchemy import select
+            async with async_session() as db:
+                res = await db.execute(select(User).limit(1))
+                if not res.scalars().first():
+                    from scripts.seed_demo_data import seed
+                    await seed(reset=False)
+        except Exception as err:
+            print(f"[Notice] Background seed: {err}")
+
+    asyncio.create_task(_seed_background())
 
     yield
     print("[INFO] Oil Spill Detection System - Shutting down...")
