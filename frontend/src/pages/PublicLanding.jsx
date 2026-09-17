@@ -324,8 +324,6 @@ export default function PublicLanding() {
   // Maritime GIS surveillance layer visibility state
   const [mapLayers, setMapLayers] = useState({
     slicks: true,
-    currents: true,
-    eez: true,
     ports: true,
     sanctuaries: true
   });
@@ -482,24 +480,28 @@ export default function PublicLanding() {
     {
       id: 1, name: 'Mumbai High Offshore Sector',
       lat: 18.850, lon: 71.900, area: 12.5, severity: 'high', priority: 'high',
+      labelDir: 'west',
       coral: false, mpaDist: '142.5 km', coastDist: '142.5 km',
       desc: 'High-density industrial crude spill along primary shipping route. Advection monitored by Sentinel-1 SAR.'
     },
     {
       id: 2, name: 'Gulf of Kutch Deepwater Channel',
-      lat: 22.450, lon: 69.150, area: 28.4, severity: 'critical', priority: 'critical',
+      lat: 22.500, lon: 68.950, area: 28.4, severity: 'critical', priority: 'critical',
+      labelDir: 'west',
       coral: true, mpaDist: '3.1 km', coastDist: '3.1 km',
       desc: 'IMMEDIATE CORAL THREAT: 3.1 km from Marine National Park reef flats. Zero-dispersant sensitivity zone.'
     },
     {
       id: 3, name: 'Palk Strait Coral Biosphere',
-      lat: 9.450, lon: 79.250, area: 6.8, severity: 'critical', priority: 'critical',
+      lat: 9.850, lon: 79.550, area: 6.8, severity: 'critical', priority: 'critical',
+      labelDir: 'east',
       coral: true, mpaDist: '4.8 km', coastDist: '4.8 km',
       desc: 'CORAL REEF ENCLAVE: Dugong feeding seagrass and living Acropora coral atolls.'
     },
     {
       id: 4, name: 'Bay of Bengal Deepwater Basin',
       lat: 15.800, lon: 82.500, area: 32.8, severity: 'medium', priority: 'medium',
+      labelDir: 'west',
       coral: false, mpaDist: '210.0 km', coastDist: '210.0 km',
       desc: 'Deepwater offshore slick drifting south-southwest under ERA5 atmospheric wind advection.'
     }
@@ -677,13 +679,13 @@ export default function PublicLanding() {
 
             <div className="hero-metrics-strip">
               <div className="hero-metric-item">
-                <span className="hero-metric-num">{stats?.total_spills ?? 3}</span>
+                <span className="hero-metric-num">{stats?.active_spills ?? spillMarkers.length}</span>
                 <span className="hero-metric-label">Active Slicks Monitored</span>
               </div>
               <div className="hero-metric-divider" />
               <div className="hero-metric-item">
-                <span className="hero-metric-num">99.4%</span>
-                <span className="hero-metric-label">SAR AI Precision</span>
+                <span className="hero-metric-num">{stats?.ai_accuracy ? `${stats.ai_accuracy}%` : '95.9%'}</span>
+                <span className="hero-metric-label">SAR AI Validation Accuracy</span>
               </div>
               <div className="hero-metric-divider" />
               <div className="hero-metric-item">
@@ -903,13 +905,13 @@ export default function PublicLanding() {
             <div>
               <div className="section-tag" style={{ marginBottom: 10 }}>
                 <SatelliteIcon size={14} color="#5BA4C9" />
-                COPERNICUS MARINE SERVICE + ERA5 WIND ADVECTION
+                REAL GIS DATA + SENTINEL-1 SAR SURVEILLANCE
               </div>
               <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1a2b3c', margin: 0 }}>
-                Indian Maritime Surveillance & Hydrodynamic Ocean Flow
+                Indian Coastal Sanctuaries, Coral Sands & Maritime Intelligence
               </h2>
               <p style={{ color: '#5a7a8f', fontSize: '0.86rem', margin: '6px 0 0 0' }}>
-                Authentic coastal bathymetry, sovereign 200 nm EEZ boundaries, live CMEMS ocean current streams, and Sentinel-1 SAR detections.
+                Authentic GIS polygons of national marine protected areas, coral reefs, sandy spit reserves, and active radar detections.
               </p>
             </div>
             <div className="map-telemetry">
@@ -927,10 +929,8 @@ export default function PublicLanding() {
               <span style={{ fontWeight: 700, color: '#1e3a4f', fontSize: '0.78rem' }}>Layers:</span>
               {[
                 { key: 'slicks', label: 'Active Slicks' },
-                { key: 'currents', label: 'CMEMS Currents' },
-                { key: 'eez', label: '200 nm EEZ' },
-                { key: 'ports', label: 'Major Ports' },
-                { key: 'sanctuaries', label: 'Sanctuaries' },
+                { key: 'sanctuaries', label: 'Marine Protected Areas & Sands (Real GIS)' },
+                { key: 'ports', label: 'Major Commercial Ports' },
               ].map(l => (
                 <label key={l.key} className="map-layer-toggle">
                   <input
@@ -1053,20 +1053,12 @@ export default function PublicLanding() {
               High Severity
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
-              <span style={{ width: 18, height: 0, borderTop: '2.5px dashed #0d9488', display: 'inline-block' }} />
-              CMEMS Current
+              <span style={{ width: 16, height: 12, borderRadius: 3, background: 'rgba(16, 185, 129, 0.45)', border: '1.5px solid #059669', display: 'inline-block' }} />
+              Marine Protected Areas & Coral Sands (Real GIS)
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
-              <span style={{ width: 18, height: 0, borderTop: '2.5px dashed #1d4ed8', display: 'inline-block' }} />
-              200 nm EEZ
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#059669', border: '2px solid #fff', display: 'inline-block', boxShadow: '0 0 0 1px #059669' }} />
-              Sanctuary
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600 }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#1e40af', border: '2px solid #fff', display: 'inline-block', boxShadow: '0 0 0 1px #1e40af' }} />
-              Port
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#1d4ed8', border: '2px solid #fff', display: 'inline-block', boxShadow: '0 0 0 1px #1d4ed8' }} />
+              Major Commercial Port
             </span>
           </div>
         </section>
