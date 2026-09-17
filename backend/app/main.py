@@ -89,12 +89,12 @@ app.include_router(reports_router)
 app.include_router(gis_router)
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root():
     return {"status": "ok", "service": "SARVAS Backend API", "docs": "/docs"}
 
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 async def health_check():
     return {"status": "ok", "service": "oil-spill-detection"}
 
