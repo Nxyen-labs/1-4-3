@@ -31,7 +31,7 @@ class SuspectScoreResponse(BaseModel):
 
 class AnomalyFlagResponse(BaseModel):
     id: int
-    vessel_id: int
+    vessel_id: Optional[int] = None
     spill_id: Optional[int] = None
     anomaly_type: str
     detected_at: datetime

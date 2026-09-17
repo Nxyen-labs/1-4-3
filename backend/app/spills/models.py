@@ -25,7 +25,22 @@ class Spill(Base):
     elongation_ratio = Column(Float, nullable=True)
     fragmentation_index = Column(Float, nullable=True, comment="Age proxy")
     age_estimate = Column(String(20), nullable=True, comment="fresh|hours|day|days")
+    age_hours_min = Column(Float, nullable=True)
+    age_hours_max = Column(Float, nullable=True)
+    age_hours_likely = Column(Float, nullable=True)
+    age_basis = Column(JSON, nullable=True)
+    origin_time_earliest = Column(DateTime(timezone=True), nullable=True)
+    origin_time_latest = Column(DateTime(timezone=True), nullable=True)
+    origin_time_likely = Column(DateTime(timezone=True), nullable=True)
+    timestamp_source = Column(String(50), nullable=True)
+    georef_method = Column(String(50), nullable=True)
+    georef_note = Column(String(500), nullable=True)
+    pixel_size_m = Column(Float, nullable=True)
+    wind_gate = Column(JSON, nullable=True)
+    sar_sha256 = Column(String(64), nullable=True)
+    data_provenance = Column(String(30), nullable=True, default="seeded_demo")
     severity = Column(String(20), nullable=True, comment="critical|high|medium|low")
+    confidence_score = Column(Float, nullable=True, default=0.88, comment="Overall fused confidence [0.0 - 1.0]")
 
     # Validation workflow
     validation_status = Column(

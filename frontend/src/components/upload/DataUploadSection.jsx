@@ -236,7 +236,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
               <div className="space-y-4">
                 <div className="p-4 bg-emerald-950/40 border border-emerald-500/40 rounded-xl">
                   <div className="flex items-center gap-2 text-emerald-400 font-bold text-base mb-1">
-                    <span>✅</span> Oil Slick Successfully Detected & Cataloged
+                    Oil Slick Successfully Detected & Cataloged
                   </div>
                   <p className="text-xs text-slate-300">
                     Spill ID <strong className="text-white">#{sarResult.id}</strong> ({sarResult.name}) was registered and projected in hydrodynamic drift models.
@@ -348,7 +348,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
               <div className="space-y-4">
                 <div className="p-4 bg-cyan-950/40 border border-cyan-500/40 rounded-xl">
                   <div className="flex items-center gap-2 text-cyan-400 font-bold text-base mb-1">
-                    <span>✅</span> AIS Data Stream Ingested
+                    AIS Data Stream Ingested
                   </div>
                   <p className="text-xs text-slate-300">
                     File <strong className="text-white">{aisResult.filename}</strong> has been parsed and integrated into the suspect attribution engine.
@@ -416,7 +416,7 @@ export default function DataUploadSection({ onUploadSuccess }) {
 
             <div className="p-4 bg-navy-900/80 rounded-xl border border-navy-700 space-y-3">
               <h4 className="font-bold text-emerald-400 text-sm flex items-center gap-2">
-                <span>⚡</span> Option 2: CLI Ingestion Command
+                Option 2: CLI Ingestion Command
               </h4>
               <p className="text-xs text-slate-300">
                 From your terminal inside the <code className="text-emerald-400">backend/</code> directory, run:

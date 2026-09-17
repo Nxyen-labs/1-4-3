@@ -12,9 +12,18 @@ const SEVERITY_COLORS = {
   critical: '#dc3545', high: '#fd7e14', medium: '#f0ad4e', low: '#28a745', unknown: '#9ca3af'
 };
 
+const REGIONS = [
+  { id: 'gujarat', label: 'Gujarat (Gulf of Kutch / Jamnagar / Kandla)' },
+  { id: 'west_coast', label: 'West Coast (Mumbai High / JNPT / Maharashtra)' },
+  { id: 'tamil_nadu', label: 'Tamil Nadu (Gulf of Mannar / Chennai)' },
+  { id: 'andhra_pradesh', label: 'Andhra Pradesh (KG Basin / Visakhapatnam)' },
+  { id: 'kerala', label: 'Kerala (Kochi / Lakshadweep Sea)' },
+  { id: 'bengal_odisha', label: 'Bengal & Odisha (Sundarbans / Paradip)' },
+];
+
 export default function RegionalDashboard() {
   const { user } = useAuth();
-  const region = user?.assigned_region || 'west_coast';
+  const [region, setRegion] = useState(user?.assigned_region || 'west_coast');
   const [activeSection, setActiveSection] = useState('overview');
   const [period, setPeriod] = useState('all'); // 'day', 'week', 'month', 'all'
   const [stats, setStats] = useState(null);
@@ -23,20 +32,20 @@ export default function RegionalDashboard() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
 
-
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(region);
+  }, [region]);
 
-  const loadData = async () => {
+  const loadData = async (targetRegion = region) => {
+    setLoading(true);
     try {
       const [statsRes, spillsRes, classRes] = await Promise.all([
-        dashboardAPI.getRegionStats(region).catch(() => ({ data: null })),
-        spillsAPI.list({ region }).catch(() => ({ data: { spills: [] } })),
+        dashboardAPI.getRegionStats(targetRegion).catch(() => ({ data: null })),
+        spillsAPI.list({ region: targetRegion }).catch(() => ({ data: { spills: [] } })),
         vesselsAPI.getClassification().catch(() => ({ data: [] })),
       ]);
       setStats(statsRes.data);
-      setSpills(spillsRes.data.spills || []);
+      setSpills(spillsRes.data?.spills || spillsRes.data || []);
       setClassification(classRes.data || []);
     } catch (err) {
       console.error('Error loading data:', err);
@@ -96,6 +105,48 @@ export default function RegionalDashboard() {
 
   return (
     <DashboardLayout title={`Regional Manager — ${region.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`} navItems={navItems}>
+      {/* Sector Switcher Bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: '#0f172a',
+        border: '1px solid #1e293b',
+        borderRadius: '8px',
+        padding: '10px 16px',
+        marginBottom: '18px',
+        flexWrap: 'wrap',
+        gap: '10px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            Operational Maritime Sector:
+          </span>
+          <select
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+            style={{
+              background: '#1e293b',
+              color: '#f8fafc',
+              border: '1px solid #38bdf8',
+              borderRadius: '6px',
+              padding: '6px 12px',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              outline: 'none',
+            }}
+          >
+            {REGIONS.map(r => (
+              <option key={r.id} value={r.id}>{r.label}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+          Sector Incidents: <strong style={{ color: '#38bdf8' }}>{stats?.total_spills || spills.length}</strong>
+        </div>
+      </div>
+
       {activeSection === 'overview' && (
         <>
           <div className="stats-grid">

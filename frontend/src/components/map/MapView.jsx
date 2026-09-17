@@ -272,11 +272,11 @@ export default function MapView({
   // Fallback demo tracks if none provided
   const demoTracks = [
     {
-      mmsi: '419008921',
-      name: 'MT ARABIAN GLORY',
+      mmsi: '419008001',
+      name: 'MT ARABIAN STAR',
       type: 'Crude Oil Tanker',
       rank: 1,
-      score: 92.4,
+      score: 82.5,
       points: [
         { lon: 71.3, lat: 18.2, sog: 13.5, time: 'T-8h' },
         { lon: 71.5, lat: 18.4, sog: 13.2, time: 'T-6h' },
@@ -417,7 +417,7 @@ export default function MapView({
             onChange={(e) => setActiveLayers(l => ({ ...l, ports: e.target.checked }))}
             style={{ accentColor: '#0b1e36' }}
           />
-          <span>⚓ Ports</span>
+          <span>Ports</span>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 500 }}>
           <input
@@ -700,7 +700,7 @@ export default function MapView({
                   key={port.name}
                   style={{ cursor: 'pointer' }}
                   onClick={() => setSelectedEntity({
-                    icon: '⚓',
+                    icon: 'PORT',
                     title: port.name,
                     details: [
                       { label: 'Classification', value: 'Major Commercial Port' },
@@ -868,7 +868,7 @@ export default function MapView({
                       fill="#b91c1c" fontSize="8.5" fontWeight="800"
                       style={{ textShadow: '0 1px 2px rgba(255,255,255,0.95)' }}
                     >
-                      ⚠️ 75-min AIS Gap + Speed Drop (0.8 kn)
+                      75-min AIS Gap + Speed Drop (0.8 kn)
                     </text>
                   </g>
                 )}

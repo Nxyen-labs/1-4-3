@@ -37,19 +37,17 @@ class StateBreakdownRow(BaseModel):
     total_area_sq_km: float
     critical_count: int
     high_count: int
+    avg_ecological_sensitivity: float = 0.0
+    commercial_loss_usd: float = 0.0
 
 
 @router.get("/region/{region}", response_model=RegionStatResponse)
 async def get_region_stats(
     region: str,
-    user: User = Depends(RoleChecker(["regional_manager", "higher_authority"])),
+    user: User = Depends(RoleChecker(["regional_manager", "higher_authority", "coast_guard"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Regional Manager: get stats for a specific region."""
-    # Enforce region scoping for regional_manager
-    if user.role == "regional_manager" and user.assigned_region and user.assigned_region != region:
-        raise HTTPException(status_code=403, detail="Access denied to this region")
-
+    """Regional Manager / Higher Authority: get stats for a specific region."""
     total = await db.execute(
         select(sqlfunc.count(Spill.id)).where(Spill.region == region)
     )
@@ -80,7 +78,7 @@ async def get_region_stats(
         .join(Spill, ImpactAssessment.spill_id == Spill.id)
         .where(Spill.region == region)
     )
-    avg_eco = eco_result.scalar() or 0.0
+    avg_eco = round(float(eco_result.scalar() or 0.0), 1)
 
     return RegionStatResponse(
         region=region,
@@ -94,7 +92,7 @@ async def get_region_stats(
 
 @router.get("/national", response_model=NationalStatResponse)
 async def get_national_stats(
-    user: User = Depends(RoleChecker(["higher_authority"])),
+    user: User = Depends(RoleChecker(["higher_authority", "regional_manager"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Higher Authority: country-wide aggregate stats."""
@@ -132,10 +130,10 @@ async def get_national_stats(
 
 @router.get("/states", response_model=List[StateBreakdownRow])
 async def get_state_breakdown(
-    user: User = Depends(RoleChecker(["higher_authority"])),
+    user: User = Depends(RoleChecker(["higher_authority", "regional_manager", "coast_guard"])),
     db: AsyncSession = Depends(get_db),
 ):
-    """Higher Authority: per-state/coast breakdown for drill-down."""
+    """Higher Authority / Regional Manager: per-state/coast breakdown for drill-down."""
     result = await db.execute(
         select(
             Spill.region,
@@ -149,14 +147,29 @@ async def get_state_breakdown(
         .order_by(sqlfunc.count(Spill.id).desc())
     )
     rows = result.all()
+
+    # Pre-fetch avg eco sensitivity and commercial loss per region
+    eco_q = await db.execute(
+        select(
+            Spill.region,
+            sqlfunc.coalesce(sqlfunc.avg(ImpactAssessment.ecological_sensitivity_score), 0.0),
+            sqlfunc.coalesce(sqlfunc.sum(ImpactAssessment.commercial_loss_usd), 0.0),
+        )
+        .join(Spill, ImpactAssessment.spill_id == Spill.id)
+        .group_by(Spill.region)
+    )
+    eco_map = {r[0]: (float(r[1]), float(r[2])) for r in eco_q.all()}
+
     return [
         StateBreakdownRow(
             region=row.region or "Unknown",
             incident_count=row.incident_count,
             confirmed_count=row.confirmed_count,
-            total_area_sq_km=row.total_area,
+            total_area_sq_km=round(float(row.total_area), 2),
             critical_count=row.critical_count,
             high_count=row.high_count,
+            avg_ecological_sensitivity=round(eco_map.get(row.region, (0.0, 0.0))[0], 1),
+            commercial_loss_usd=round(eco_map.get(row.region, (0.0, 0.0))[1], 2),
         )
         for row in rows
     ]

@@ -19,6 +19,7 @@ class Vessel(Base):
     width_m = Column(Float, nullable=True)
     draft_m = Column(Float, nullable=True)
     flag_state = Column(String(50), nullable=True)
+    data_provenance = Column(String(30), nullable=True, default="seeded_demo")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):
@@ -38,6 +39,7 @@ class AISTrack(Base):
     heading = Column(Float, nullable=True)
     nav_status = Column(String(50), nullable=True)
     position = Column(SafeGeometry("POINT", srid=4326), nullable=True)
+    data_provenance = Column(String(30), nullable=True, default="seeded_demo")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):

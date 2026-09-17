@@ -94,6 +94,25 @@ export const attributionAPI = {
     client.get('/api/attribution/anomalies/feed', { params: { acknowledged } }),
   acknowledgeAnomaly: (id) =>
     client.post(`/api/attribution/anomalies/${id}/acknowledge`),
+  getTraffic: (spillId) =>
+    client.get(`/api/attribution/${spillId}/traffic`),
+};
+
+// === Impact API ===
+export const impactAPI = {
+  getAssessment: (spillId) => client.get(`/api/impact/${spillId}/assessment`),
+};
+
+// === GIS API ===
+export const gisAPI = {
+  getEEZ: () => client.get('/api/gis/eez'),
+  getCorals: (params) => client.get('/api/gis/corals', { params }),
+  getDataStreams: () => client.get('/api/gis/data-streams'),
+};
+
+// === System API ===
+export const systemAPI = {
+  getLimitations: () => client.get('/api/limitations'),
 };
 
 // === Dashboard API ===

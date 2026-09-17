@@ -4,11 +4,11 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import {
   INDIA_MAINLAND_POLYGON,
   INDIA_ISLANDS_POLYGONS,
-  INDIAN_PORTS,
-  MARINE_SANCTUARIES
+  IMPORTANT_PORTS,
+  IMPORTANT_SANCTUARIES
 } from './indiaMapData';
 
-// Clean free OpenStreetMap-based style — no API key needed
+// Clean free OpenStreetMap-based style
 const MAP_STYLE = {
   version: 8,
   sources: {
@@ -30,6 +30,10 @@ const MAP_STYLE = {
   ]
 };
 
+// Static default framing perfectly centered on sovereign Indian coastline
+const DEFAULT_CENTER = [79.2, 19.5];
+const DEFAULT_ZOOM = 4.35;
+
 export default function RealIndiaMap({
   selectedIncident,
   setSelectedIncident,
@@ -42,10 +46,6 @@ export default function RealIndiaMap({
   const markersRef = useRef([]);
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  // Exact geographic bounding box for Whole Sovereign India
-  // Lon: 67.0E to 98.0E, Lat: 6.0N to 37.5N
-  const INDIA_BOUNDS = [[67.0, 6.0], [98.0, 37.5]];
-
   // 1. Sovereign Mainland Boundary GeoJSON
   const mainlandGeoJSON = {
     type: 'Feature',
@@ -55,7 +55,7 @@ export default function RealIndiaMap({
     }
   };
 
-  // 2. Island Territories GeoJSON (Andaman & Nicobar, Lakshadweep, Sundarbans)
+  // 2. Island Territories GeoJSON (Andaman & Nicobar, Lakshadweep)
   const islandsGeoJSON = {
     type: 'FeatureCollection',
     features: (INDIA_ISLANDS_POLYGONS || []).map((poly, idx) => ({
@@ -145,7 +145,7 @@ export default function RealIndiaMap({
     ]
   };
 
-  // Initialize MapLibre — interaction disabled so the whole India view is always visible
+  // Initialize MapLibre — locked / static view framing India cleanly
   useEffect(() => {
     if (!mapContainer.current) return;
 
@@ -155,27 +155,27 @@ export default function RealIndiaMap({
     const map = new Map({
       container: mapContainer.current,
       style: MAP_STYLE,
-      // Zoom 3.4 at center [80, 20] shows whole India — Kashmir to Kanyakumari
-      center: [80, 20],
-      zoom: 3.4,
-      minZoom: 2.6,
-      maxZoom: 13.0,
-      // Interactive mode enabled — smooth zooming and panning
-      dragPan: true,
-      scrollZoom: true,
+      center: DEFAULT_CENTER,
+      zoom: DEFAULT_ZOOM,
+      minZoom: 3.5,
+      maxZoom: 9.0,
+      // Static map: disable accidental scrolling/pitching/rotation while browsing
+      dragPan: false,
+      scrollZoom: false,
+      doubleClickZoom: false,
       dragRotate: false,
-      doubleClickZoom: true,
-      touchZoomRotate: true,
-      keyboard: true,
-      boxZoom: true
+      touchPitch: false,
+      touchZoomRotate: false,
+      keyboard: false,
+      boxZoom: false
     });
 
     mapRef.current = map;
 
     map.on('load', () => {
       map.jumpTo({
-        center: [80, 20],
-        zoom: 3.4,
+        center: DEFAULT_CENTER,
+        zoom: DEFAULT_ZOOM,
         pitch: 0,
         bearing: 0
       });
@@ -189,8 +189,8 @@ export default function RealIndiaMap({
           source: 'india-mainland',
           paint: {
             'line-color': '#0284c7',
-            'line-width': 1.8,
-            'line-opacity': 0.75
+            'line-width': 1.6,
+            'line-opacity': 0.7
           }
         });
       } catch (err) {
@@ -206,15 +206,15 @@ export default function RealIndiaMap({
           source: 'india-islands',
           paint: {
             'line-color': '#0284c7',
-            'line-width': 1.6,
-            'line-opacity': 0.75
+            'line-width': 1.5,
+            'line-opacity': 0.7
           }
         });
       } catch (err) {
         console.warn('Islands source/layer error:', err);
       }
 
-      // 3. 200 nm Sovereign EEZ Boundary Layer — vivid maritime blue with dash
+      // 3. 200 nm Sovereign EEZ Boundary Layer
       try {
         map.addSource('eez-boundary', { type: 'geojson', data: eezGeoJSON });
         map.addLayer({
@@ -224,16 +224,16 @@ export default function RealIndiaMap({
           layout: { visibility: mapLayers.eez !== false ? 'visible' : 'none' },
           paint: {
             'line-color': '#1d4ed8',
-            'line-width': 2.8,
+            'line-width': 2.2,
             'line-dasharray': [5, 3],
-            'line-opacity': 0.95
+            'line-opacity': 0.9
           }
         });
       } catch (err) {
         console.warn('EEZ source/layer error:', err);
       }
 
-      // 4. CMEMS Hydrodynamic Ocean Current Streamlines — vivid teal with dash
+      // 4. CMEMS Hydrodynamic Ocean Current Streamlines
       try {
         map.addSource('cmems-currents', { type: 'geojson', data: currentsGeoJSON });
         map.addLayer({
@@ -243,16 +243,16 @@ export default function RealIndiaMap({
           layout: { visibility: mapLayers.currents !== false ? 'visible' : 'none' },
           paint: {
             'line-color': '#0d9488',
-            'line-width': 2.8,
+            'line-width': 2.4,
             'line-dasharray': [6, 4],
-            'line-opacity': 0.95
+            'line-opacity': 0.9
           }
         });
       } catch (err) {
         console.warn('Currents source/layer error:', err);
       }
 
-      // 5. Mount Rich Interactive DOM Markers
+      // 5. Mount Clean, Non-Colliding Markers
       renderDomMarkers(map);
 
       setMapLoaded(true);
@@ -265,27 +265,48 @@ export default function RealIndiaMap({
     };
   }, []);
 
-  // Function to create clean, clearly labeled markers with names marked directly on the map
+  // Directional placement helper for non-overlapping labels
+  const getDirectionalStyle = (dir) => {
+    switch (dir) {
+      case 'west':
+        return 'right: 18px; top: 50%; transform: translateY(-50%);';
+      case 'east':
+        return 'left: 18px; top: 50%; transform: translateY(-50%);';
+      case 'north':
+        return 'bottom: 18px; left: 50%; transform: translateX(-50%);';
+      case 'south':
+      default:
+        return 'top: 18px; left: 50%; transform: translateX(-50%);';
+    }
+  };
+
+  // Function to create clean, clearly placed markers
   const renderDomMarkers = (map) => {
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
-    // A. Oil Spill Markers — high-visibility pulsing radar beacons with directly marked names
+    // A. Oil Spill Incidents (Radar Slicks)
     (spillMarkers || []).forEach(sp => {
       const el = document.createElement('div');
-      el.className = 'custom-map-marker marker-slick';
+      el.className = 'sarvas-map-marker marker-slick';
       el.dataset.type = 'slick';
-      el.style.display = mapLayers.slicks ? 'flex' : 'none';
+      el.dataset.id = sp.id;
+      el.style.display = mapLayers.slicks ? 'block' : 'none';
+      el.style.position = 'absolute';
+      el.style.width = '16px';
+      el.style.height = '16px';
+      el.style.cursor = 'pointer';
 
       const isCrit = sp.priority === 'critical' || sp.coral;
       const coreColor = isCrit ? '#dc2626' : '#ea580c';
       const isSelected = selectedIncident?.centroid_lat === sp.lat && selectedIncident?.centroid_lon === sp.lon;
       if (isSelected) el.classList.add('active');
 
-      // Smart direction: Western slicks point WEST into Arabian Sea, Eastern slicks point EAST
-      const isWest = sp.lon < 75.0;
-      const flexDir = isWest ? 'row-reverse' : 'row';
-      const anchor = isWest ? 'right' : 'left';
+      // Smart label direction to avoid collisions
+      // Gulf of Kutch / Mumbai High point West into Arabian Sea
+      // Palk Strait / Bay of Bengal point East / South
+      const labelDir = sp.lon < 75.0 ? 'west' : (sp.lat < 12.0 ? 'east' : 'south');
+      const dirStyle = getDirectionalStyle(labelDir);
 
       const shortName = sp.name
         .replace(' Offshore Sector', '')
@@ -293,19 +314,14 @@ export default function RealIndiaMap({
         .replace(' Coral Biosphere', '')
         .replace(' Deepwater Basin', '');
 
-      el.style.flexDirection = flexDir;
-      el.style.alignItems = 'center';
-      el.style.gap = '5px';
-      el.style.cursor = 'pointer';
-
       el.innerHTML = `
-        <div class="pin-beacon" style="position: relative; width: 16px; height: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
-          <div style="position: absolute; inset: 0; border-radius: 50%; border: 2px solid ${coreColor}; animation: markerPulse 2s infinite;"></div>
-          <div style="width: 8px; height: 8px; border-radius: 50%; background: ${coreColor}; border: 1.5px solid #ffffff; box-shadow: 0 0 6px ${coreColor}; z-index: 2;"></div>
-        </div>
-        <div class="pin-label" style="background: rgba(15, 23, 42, 0.92); color: #ffffff; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; white-space: nowrap; border: 1px solid ${coreColor}; box-shadow: 0 2px 6px rgba(0,0,0,0.35); backdrop-filter: blur(4px); display: flex; align-items: center; gap: 4px;">
-          <span>${shortName}</span>
-          <span style="font-size: 7.5px; padding: 0.5px 3px; border-radius: 2px; background: ${coreColor}; color: #fff; font-weight: 800; text-transform: uppercase;">${sp.severity}</span>
+        <div style="position: relative; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center;">
+          <div style="position: absolute; inset: -3px; border-radius: 50%; border: 2px solid ${coreColor}; animation: sarvasPulse 2s infinite;"></div>
+          <div style="width: 9px; height: 9px; border-radius: 50%; background: ${coreColor}; border: 1.5px solid #ffffff; box-shadow: 0 0 8px ${coreColor}; z-index: 2;"></div>
+          <div class="sarvas-label" style="position: absolute; ${dirStyle} background: rgba(15, 23, 42, 0.94); color: #ffffff; padding: 2.5px 7px; border-radius: 5px; font-size: 9px; font-weight: 700; white-space: nowrap; border: 1px solid ${coreColor}; box-shadow: 0 2px 8px rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; gap: 4px; pointer-events: none;">
+            <span>${shortName}</span>
+            <span style="font-size: 7.5px; padding: 0.5px 3px; border-radius: 2px; background: ${coreColor}; color: #fff; font-weight: 800; text-transform: uppercase;">${sp.severity}</span>
+          </div>
         </div>
       `;
 
@@ -328,41 +344,34 @@ export default function RealIndiaMap({
         });
       });
 
-      const marker = new Marker({ element: el, anchor })
+      const marker = new Marker({ element: el, anchor: 'center' })
         .setLngLat([sp.lon, sp.lat])
         .addTo(map);
       markersRef.current.push(marker);
     });
 
-    // B. Ports — clean deep-blue naval port beacon with directly marked names
-    INDIAN_PORTS.forEach(p => {
+    // B. Strategic Key Ports (Kandla, Mumbai, Kochi, Chennai, Vizag)
+    IMPORTANT_PORTS.forEach(p => {
       const el = document.createElement('div');
-      el.className = 'custom-map-marker marker-port';
+      el.className = 'sarvas-map-marker marker-port';
       el.dataset.type = 'port';
-      el.style.display = mapLayers.ports ? 'flex' : 'none';
+      el.style.display = mapLayers.ports ? 'block' : 'none';
+      el.style.position = 'absolute';
+      el.style.width = '14px';
+      el.style.height = '14px';
+      el.style.cursor = 'pointer';
 
       const isSelected = selectedIncident?.centroid_lat === p.lat && selectedIncident?.centroid_lon === p.lon;
       if (isSelected) el.classList.add('active');
 
-      const shortName = p.name.split(' (')[0].replace(' / Kolkata', '');
-
-      // Smart direction: Kandla points NORTH; other coastal ports point EAST inland/seaward
-      let flexDir = 'row';
-      let anchor = 'left';
-      if (p.name.includes('Kandla')) {
-        flexDir = 'column-reverse';
-        anchor = 'bottom';
-      }
-
-      el.style.flexDirection = flexDir;
-      el.style.alignItems = 'center';
-      el.style.gap = '4px';
-      el.style.cursor = 'pointer';
+      const dirStyle = getDirectionalStyle(p.labelDir || 'east');
 
       el.innerHTML = `
-        <div class="pin-beacon" style="width: 9px; height: 9px; border-radius: 50%; background: #1e40af; border: 1.5px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); flex-shrink: 0;"></div>
-        <div class="pin-label" style="background: rgba(15, 23, 42, 0.92); color: #eff6ff; padding: 1.5px 5px; border-radius: 4px; font-size: 8.5px; font-weight: 700; white-space: nowrap; border: 1px solid #3b82f6; box-shadow: 0 1px 5px rgba(0,0,0,0.3); backdrop-filter: blur(4px);">
-          ${shortName}
+        <div style="position: relative; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">
+          <div style="width: 9px; height: 9px; border-radius: 50%; background: #1d4ed8; border: 1.5px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); z-index: 2;"></div>
+          <div class="sarvas-label" style="position: absolute; ${dirStyle} background: rgba(15, 23, 42, 0.94); color: #eff6ff; padding: 2px 6px; border-radius: 4px; font-size: 8.5px; font-weight: 700; white-space: nowrap; border: 1px solid #3b82f6; box-shadow: 0 2px 6px rgba(0,0,0,0.3); backdrop-filter: blur(4px); pointer-events: none;">
+            ${p.shortName || p.name}
+          </div>
         </div>
       `;
 
@@ -381,57 +390,38 @@ export default function RealIndiaMap({
           nearest_mpa_distance_km: 'Direct Coastal Link',
           centroid_lat: p.lat,
           centroid_lon: p.lon,
-          vulnerability_details: `Major commercial shipping and port terminal in ${p.state}. Exact Coordinates: ${p.lat}°N, ${p.lon}°E.`
+          vulnerability_details: `Major commercial shipping and strategic port terminal in ${p.state}. Exact Coordinates: ${p.lat}°N, ${p.lon}°E.`
         });
       });
 
-      const marker = new Marker({ element: el, anchor })
+      const marker = new Marker({ element: el, anchor: 'center' })
         .setLngLat([p.lon, p.lat])
         .addTo(map);
       markersRef.current.push(marker);
     });
 
-    // C. Sanctuaries — clean emerald bio-reserve beacon with directly marked names
-    MARINE_SANCTUARIES.forEach(s => {
+    // C. Schedule-I Marine Sanctuaries (Gulf of Kutch, Gulf of Mannar, Sundarbans)
+    IMPORTANT_SANCTUARIES.forEach(s => {
       const el = document.createElement('div');
-      el.className = 'custom-map-marker marker-sanctuary';
+      el.className = 'sarvas-map-marker marker-sanctuary';
       el.dataset.type = 'sanctuary';
-      el.style.display = mapLayers.sanctuaries ? 'flex' : 'none';
+      el.style.display = mapLayers.sanctuaries ? 'block' : 'none';
+      el.style.position = 'absolute';
+      el.style.width = '14px';
+      el.style.height = '14px';
+      el.style.cursor = 'pointer';
 
       const isSelected = selectedIncident?.centroid_lat === s.lat && selectedIncident?.centroid_lon === s.lon;
       if (isSelected) el.classList.add('active');
 
-      let shortLabel = s.name;
-      let flexDir = 'column';
-      let anchor = 'top';
-
-      if (s.name.includes('Gulf of Kutch')) {
-        shortLabel = 'Marine NP';
-        flexDir = 'column'; // points SOUTH onto Saurashtra, away from Kandla (north) and Slick (west)
-        anchor = 'top';
-      } else if (s.name.includes('Gulf of Mannar')) {
-        shortLabel = 'Gulf of Mannar';
-        flexDir = 'column'; // points SOUTH into Mannar Basin, away from Palk Strait (east)
-        anchor = 'top';
-      } else if (s.name.includes('Gahirmatha')) {
-        shortLabel = 'Gahirmatha';
-        flexDir = 'column-reverse'; // points NORTH, away from Paradip (south-east)
-        anchor = 'bottom';
-      } else if (s.name.includes('Sundarbans')) {
-        shortLabel = 'Sundarbans';
-        flexDir = 'column-reverse'; // points NORTH
-        anchor = 'bottom';
-      }
-
-      el.style.flexDirection = flexDir;
-      el.style.alignItems = 'center';
-      el.style.gap = '3px';
-      el.style.cursor = 'pointer';
+      const dirStyle = getDirectionalStyle(s.labelDir || 'south');
 
       el.innerHTML = `
-        <div class="pin-beacon" style="width: 9px; height: 9px; border-radius: 50%; background: #059669; border: 1.5px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); flex-shrink: 0;"></div>
-        <div class="pin-label" style="background: rgba(15, 23, 42, 0.92); color: #ecfdf5; padding: 1.5px 5px; border-radius: 4px; font-size: 8.5px; font-weight: 700; white-space: nowrap; border: 1px solid #10b981; box-shadow: 0 1px 5px rgba(0,0,0,0.3); backdrop-filter: blur(4px);">
-          ${shortLabel}
+        <div style="position: relative; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">
+          <div style="width: 9px; height: 9px; border-radius: 50%; background: #059669; border: 1.5px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); z-index: 2;"></div>
+          <div class="sarvas-label" style="position: absolute; ${dirStyle} background: rgba(15, 23, 42, 0.94); color: #ecfdf5; padding: 2px 6px; border-radius: 4px; font-size: 8.5px; font-weight: 700; white-space: nowrap; border: 1px solid #10b981; box-shadow: 0 2px 6px rgba(0,0,0,0.3); backdrop-filter: blur(4px); pointer-events: none;">
+            ${s.shortLabel || s.name}
+          </div>
         </div>
       `;
 
@@ -454,7 +444,7 @@ export default function RealIndiaMap({
         });
       });
 
-      const marker = new Marker({ element: el, anchor })
+      const marker = new Marker({ element: el, anchor: 'center' })
         .setLngLat([s.lon, s.lat])
         .addTo(map);
       markersRef.current.push(marker);
@@ -477,16 +467,16 @@ export default function RealIndiaMap({
       const el = m.getElement();
       const type = el.dataset.type;
       if (type === 'slick') {
-        el.style.display = mapLayers.slicks ? 'flex' : 'none';
+        el.style.display = mapLayers.slicks ? 'block' : 'none';
       } else if (type === 'port') {
-        el.style.display = mapLayers.ports ? 'flex' : 'none';
+        el.style.display = mapLayers.ports ? 'block' : 'none';
       } else if (type === 'sanctuary') {
-        el.style.display = mapLayers.sanctuaries ? 'flex' : 'none';
+        el.style.display = mapLayers.sanctuaries ? 'block' : 'none';
       }
     });
   }, [mapLayers, mapLoaded]);
 
-  // Highlight active marker and smoothly pan/zoom map if selectedIncident changes
+  // Highlight active marker when selectedIncident changes
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
@@ -504,16 +494,6 @@ export default function RealIndiaMap({
         el.classList.remove('active');
       }
     });
-
-    if (selectedIncident?.centroid_lat && selectedIncident?.centroid_lon) {
-      map.flyTo({
-        center: [selectedIncident.centroid_lon, selectedIncident.centroid_lat],
-        zoom: Math.max(map.getZoom(), 5.2),
-        speed: 1.2,
-        curve: 1.3,
-        essential: true
-      });
-    }
   }, [selectedIncident, mapLoaded]);
 
   // Re-render markers if spillMarkers update
@@ -525,38 +505,34 @@ export default function RealIndiaMap({
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      {/* Keyframe animation and clean non-overlapping tooltip styles */}
+      {/* Clean keyframe animation and styling */}
       <style>{`
-        @keyframes markerPulse {
+        @keyframes sarvasPulse {
           0% { transform: scale(0.6); opacity: 1; }
-          70% { transform: scale(1.7); opacity: 0.12; }
+          70% { transform: scale(1.6); opacity: 0.12; }
           100% { transform: scale(0.6); opacity: 0; }
         }
-        /* Hide MapLibre logo & attribution for cleaner look */
+        /* Hide MapLibre logo & attribution clutter */
         .maplibregl-ctrl-logo { display: none !important; }
         .maplibregl-ctrl-attrib { display: none !important; }
 
-        /* Custom Marker Container with Directional Permanent Label */
-        .custom-map-marker {
-          position: relative;
-          display: flex;
-          align-items: center;
-          cursor: pointer;
+        /* Marker Root Element */
+        .sarvas-map-marker {
+          position: absolute !important;
           z-index: 15;
           user-select: none;
-          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+          transition: filter 0.15s ease;
         }
-        .custom-map-marker:hover {
-          transform: scale(1.15);
-          z-index: 100;
+        .sarvas-map-marker:hover {
+          z-index: 50;
+          filter: brightness(1.2);
         }
-        .custom-map-marker.active {
-          transform: scale(1.2);
-          z-index: 110;
+        .sarvas-map-marker.active {
+          z-index: 60;
         }
-        .custom-map-marker.active .pin-label {
+        .sarvas-map-marker.active .sarvas-label {
           border-color: #ffffff !important;
-          box-shadow: 0 0 12px rgba(56, 189, 248, 0.8) !important;
+          box-shadow: 0 0 12px rgba(56, 189, 248, 0.9) !important;
         }
       `}</style>
 
@@ -599,14 +575,20 @@ export default function RealIndiaMap({
         >−</button>
         <div style={{ height: 1, background: '#e2e8f0', margin: '2px 2px' }} />
         <button
-          onClick={() => mapRef.current?.flyTo({ center: [80, 20], zoom: 3.4, speed: 1.2, essential: true })}
+          onClick={() => mapRef.current?.flyTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM, speed: 1.2, essential: true })}
           style={{
             width: 28, height: 28, border: 'none', background: '#f1f5f9',
             color: '#0284c7', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer',
             borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}
           title="Reset Whole India View"
-        >🌐</button>
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+        </button>
       </div>
 
       {/* Floating "India" badge — top-left clean label */}
@@ -649,7 +631,7 @@ export default function RealIndiaMap({
           display: 'inline-block',
           marginLeft: 2
         }} />
-        <span style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 700 }}>Live</span>
+        <span style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 700 }}>Live Feed</span>
       </div>
 
       {/* Map source attribution — bottom right */}
@@ -660,7 +642,7 @@ export default function RealIndiaMap({
         zIndex: 10,
         fontSize: '0.65rem',
         color: '#64748b',
-        background: 'rgba(255,255,255,0.8)',
+        background: 'rgba(255,255,255,0.85)',
         padding: '2px 8px',
         borderRadius: 6
       }}>

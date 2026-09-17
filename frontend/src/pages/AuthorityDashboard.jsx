@@ -12,10 +12,15 @@ const SEVERITY_COLORS = {
 };
 
 const REGION_LABELS = {
-  west_coast: 'West Coast (Gujarat/Maharashtra/Goa)',
-  southwest_coast: 'Southwest Coast (Karnataka/Kerala)',
-  southeast_coast: 'Southeast Coast (Tamil Nadu/Andhra)',
-  east_coast: 'East Coast (Odisha/West Bengal)',
+  gujarat: 'Gujarat (Gulf of Kutch / Jamnagar / Kandla)',
+  west_coast: 'West Coast (Mumbai High / JNPT / Maharashtra)',
+  tamil_nadu: 'Tamil Nadu (Gulf of Mannar / Chennai)',
+  andhra_pradesh: 'Andhra Pradesh (KG Basin / Visakhapatnam)',
+  kerala: 'Kerala (Kochi / Lakshadweep Sea)',
+  bengal_odisha: 'Bengal & Odisha (Sundarbans / Paradip)',
+  southeast_coast: 'Southeast Coast (Tamil Nadu / Palk Strait)',
+  southwest_coast: 'Southwest Coast (Karnataka / Kerala)',
+  east_coast: 'East Coast (Odisha / West Bengal)',
   andaman: 'Andaman & Nicobar Islands',
 };
 
@@ -325,11 +330,13 @@ export default function AuthorityDashboard() {
                     <th>Area (km²)</th>
                     <th>Critical</th>
                     <th>High</th>
+                    <th>Avg Eco Risk</th>
+                    <th>Commercial Loss</th>
                   </tr>
                 </thead>
                 <tbody>
                   {states.length === 0 ? (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', color: '#9ca3af', padding: '30px' }}>
+                    <tr><td colSpan={9} style={{ textAlign: 'center', color: '#9ca3af', padding: '30px' }}>
                       No state-level data available
                     </td></tr>
                   ) : (
@@ -355,6 +362,14 @@ export default function AuthorityDashboard() {
                             <span className="badge badge-high">{s.high_count}</span>
                           )}
                           {s.high_count === 0 && '—'}
+                        </td>
+                        <td>
+                          <span style={{ fontWeight: 700, color: s.avg_ecological_sensitivity > 50 ? '#f87171' : '#38bdf8' }}>
+                            {s.avg_ecological_sensitivity ? `${s.avg_ecological_sensitivity}/100` : '—'}
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: 600, color: '#f59e0b' }}>
+                          {s.commercial_loss_usd ? `$${Math.round(s.commercial_loss_usd).toLocaleString()}` : '—'}
                         </td>
                       </tr>
                     ))

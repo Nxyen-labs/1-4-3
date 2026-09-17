@@ -29,14 +29,48 @@ KNOWN_MPAS = [
 _GIS_CACHE = {}
 
 
+class _SimpleGISLayer:
+    def __init__(self, geoms):
+        self.geoms = [g for g in geoms if g is not None]
+
+    def contains(self, pt):
+        class _BS:
+            def __init__(self, v): self.v = v
+            def any(self): return self.v
+        return _BS(any(g.contains(pt) for g in self.geoms))
+
+    def intersects(self, geom):
+        class _BS:
+            def __init__(self, v): self.v = v
+            def any(self): return self.v
+        return _BS(any(g.intersects(geom) for g in self.geoms))
+
+    def distance(self, pt):
+        class _DS:
+            def __init__(self, dists): self.dists = dists
+            def min(self): return min(self.dists) if self.dists else 999.0
+        return _DS([g.distance(pt) for g in self.geoms])
+
+
 def _get_gis_layer(path: Path):
     if not path.exists():
         return None
     p_str = str(path)
     if p_str not in _GIS_CACHE:
         try:
-            import geopandas as gpd
-            _GIS_CACHE[p_str] = gpd.read_file(p_str)
+            import json
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            geoms = []
+            features = data.get("features", [])
+            for feat in features:
+                geom_dict = feat.get("geometry")
+                if geom_dict:
+                    try:
+                        geoms.append(shape(geom_dict))
+                    except Exception:
+                        pass
+            _GIS_CACHE[p_str] = _SimpleGISLayer(geoms)
         except Exception as e:
             print(f"[WARN] Failed to load GIS layer {path.name}: {e}")
             return None
@@ -94,7 +128,10 @@ def assess_spill_environmental_impact(lat: float, lon: float, area_sq_km: float 
             nearest_mpa_name = mpa["name"]
     overlaps_mpa = bool(nearest_mpa_distance_km < 5.0)
 
-    # 5. Composite Sensitivity Score & Priority
+    # 5. Proximity Escalation (< 15 km to MPA or Coastline/Beach)
+    is_proximity_emergency = bool(nearest_mpa_distance_km < 15.0 or coast_proximity_km < 15.0)
+
+    # 6. Composite Sensitivity Score & Priority
     sensitivity_score = compute_ecological_sensitivity(
         overlaps_mpa=overlaps_mpa,
         overlaps_coral=overlaps_coral,
@@ -110,12 +147,47 @@ def assess_spill_environmental_impact(lat: float, lon: float, area_sq_km: float 
         coast_proximity_km=coast_proximity_km,
         ecological_sensitivity_score=sensitivity_score,
     )
+    if is_proximity_emergency and priority != "critical":
+        priority = "critical"
 
+    # 7. Comprehensive Economic & Commercial Loss Breakdown
+    # Fisheries loss: daily catch disruption based on surface area and nearshore fleet density
+    fish_multiplier = 140_000 if coast_proximity_km < 25 else 75_000
+    fisheries_loss = round(area_sq_km * fish_multiplier)
+
+    # Port trade & shipping demurrage: vessel waiting and transit rerouting
+    port_trade_loss = round(area_sq_km * 95_000) if coast_proximity_km < 50 else 30_000
+
+    # Coastal tourism & beach recreation loss
+    tourism_loss = round(area_sq_km * 160_000) if coast_proximity_km < 20 else (round(area_sq_km * 35_000) if coast_proximity_km < 40 else 0)
+
+    # Direct spill cleanup & containment expenditure
     cleanup_cost = estimate_cleanup_cost(
         area_sq_km=area_sq_km,
         priority=priority,
         coast_proximity_km=coast_proximity_km,
     )
+
+    total_commercial_loss = fisheries_loss + port_trade_loss + tourism_loss + cleanup_cost
+
+    # 8. Natural / Ecological Harm Quantification
+    coral_risk = "HIGH RISK (Severe Bleaching / Damping)" if (overlaps_coral or coral_distance_km < 15) else "MODERATE" if coral_distance_km < 50 else "MINIMAL"
+    mangrove_risk = "CRITICAL SUFFOCATION HAZARD" if (nearest_mpa_distance_km < 20 and "Mangroves" in nearest_mpa_name) else "ELEVATED VULNERABILITY" if coast_proximity_km < 15 else "LOW"
+
+    # Regional Endangered Fauna Specifics
+    species_threatened = []
+    if "Kutch" in nearest_mpa_name or "Mannar" in nearest_mpa_name:
+        species_threatened.extend(["Dugong dugon (Sea Cow - Vulnerable)", "Chelonia mydas (Green Sea Turtle)"])
+    if "Gahirmatha" in nearest_mpa_name or "Odisha" in nearest_mpa_name:
+        species_threatened.append("Lepidochelys olivacea (Olive Ridley Mass Nesting Beach)")
+    if "Sundarbans" in nearest_mpa_name:
+        species_threatened.extend(["Orcaella brevirostris (Irrawaddy Dolphin)", "Estuarine Mangrove Nursery Fish"])
+    if not species_threatened:
+        species_threatened = ["Sousa chinensis (Indo-Pacific Humpback Dolphin)", "Pelagic Tuna & Mackerel Stock"]
+
+    emergency_alert_msg = None
+    if is_proximity_emergency:
+        emergency_alert_msg = f"EMERGENCY TIER-1 PROTOCOL: Slick within {min(nearest_mpa_distance_km, coast_proximity_km):.1f} km of sensitive coastal boundary ({nearest_mpa_name}). Priority escalated to CRITICAL. Immediate Coast Guard containment boom deployment authorized."
 
     return {
         "affected_area_sq_km": area_sq_km,
@@ -127,13 +199,36 @@ def assess_spill_environmental_impact(lat: float, lon: float, area_sq_km: float 
         "nearest_mpa_distance_km": nearest_mpa_distance_km,
         "nearest_coral_distance_km": coral_distance_km,
         "priority": priority,
+        "is_proximity_emergency": is_proximity_emergency,
+        "emergency_alert": emergency_alert_msg,
         "estimated_cleanup_cost_usd": cleanup_cost,
         "ecological_sensitivity_score": sensitivity_score,
+        "economic_loss": {
+            "total_commercial_loss_usd": total_commercial_loss,
+            "fisheries_loss_usd": fisheries_loss,
+            "port_trade_loss_usd": port_trade_loss,
+            "tourism_loss_usd": tourism_loss,
+            "cleanup_containment_usd": cleanup_cost,
+            "currency": "USD",
+            "inr_approx_crores": round((total_commercial_loss * 86.5) / 10_000_000, 2),
+        },
+        "natural_harm": {
+            "coral_reef_risk": coral_risk,
+            "mangrove_risk": mangrove_risk,
+            "endangered_species": species_threatened,
+            "ecological_sensitivity_score": sensitivity_score,
+            "affected_hectares": round(area_sq_km * 100, 1),
+        },
         "vulnerability_details": {
             "coral_atlas_status": "Reef overlap detected" if overlaps_coral else f"{coral_distance_km} km to nearest Allen Coral Atlas reef",
             "eez_jurisdiction": "Within Sovereign India EEZ" if overlaps_eez else "International Waters",
             "coast_distance": f"{coast_proximity_km} km to Indian coastline",
             "nearest_protected_area": f"{nearest_mpa_name} ({nearest_mpa_distance_km} km)",
+            "total_economic_loss_usd": f"${total_commercial_loss:,.0f}",
+            "fisheries_impact_usd": f"${fisheries_loss:,.0f}",
+            "port_trade_impact_usd": f"${port_trade_loss:,.0f}",
+            "tourism_impact_usd": f"${tourism_loss:,.0f}",
+            "emergency_alert": emergency_alert_msg,
         }
     }
 

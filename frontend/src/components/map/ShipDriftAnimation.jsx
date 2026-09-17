@@ -83,12 +83,12 @@ export default function ShipDriftAnimation({
     if (suspects && suspects.length > 0) {
       return suspects.map((s, idx) => ({
         id: s.vessel_id || idx + 1,
-        mmsi: s.mmsi || (idx === 0 ? '419008921' : idx === 1 ? '419003419' : '351829000'),
-        name: s.vessel_name || (idx === 0 ? 'MT ARABIAN GLORY' : idx === 1 ? 'MT INDUS VOYAGER' : 'MV PACIFIC PIONEER'),
+        mmsi: s.vessel_mmsi || s.mmsi || (idx === 0 ? '419008001' : idx === 1 ? '419008002' : '419008003'),
+        name: s.vessel_name || (idx === 0 ? 'MT ARABIAN STAR' : idx === 1 ? 'MV PACIFIC VOYAGER' : 'CHEM POLARIS'),
         type: s.vessel_type || 'Crude Oil Tanker',
-        flag: s.flag_state || 'India',
+        flag: s.vessel_flag || s.flag_state || 'India',
         rank: s.rank || idx + 1,
-        score: s.total_score ? Number(s.total_score).toFixed(1) : (idx === 0 ? '92.4' : idx === 1 ? '38.2' : '18.5'),
+        score: s.total_score ? Number(s.total_score).toFixed(1) : (idx === 0 ? '82.5' : idx === 1 ? '45.2' : '31.8'),
         isCulprit: idx === 0,
         explanation: s.explanation,
         keyframes: idx === 0 ? [
@@ -96,8 +96,8 @@ export default function ShipDriftAnimation({
           { t: 0.15, relHour: -6.5, lon: 71.50, lat: 18.42, sog: 13.5, cog: 215, heading: 214, status: 'Under way engine' },
           { t: 0.30, relHour: -5.0, lon: 71.68, lat: 18.60, sog: 13.2, cog: 216, heading: 215, status: 'Under way engine' },
           { t: 0.45, relHour: -3.5, lon: 71.80, lat: 18.75, sog: 11.0, cog: 218, heading: 216, gap: true, status: 'AIS SIGNAL LOST' },
-          { t: 0.60, relHour: -1.0, lon: 71.88, lat: 18.83, sog: 3.5, cog: 195, heading: 198, gap: true, speedDrop: true, status: 'SUSPECTED DISCHARGE (3.5 kn)' },
-          { t: 0.72, relHour: 0.5, lon: 71.93, lat: 18.88, sog: 12.4, cog: 335, heading: 332, courseChange: true, status: 'COURSE DEVIATION 42°' },
+          { t: 0.60, relHour: -1.0, lon: 71.88, lat: 18.83, sog: 0.8, cog: 195, heading: 198, gap: true, speedDrop: true, status: 'SUSPECTED DISCHARGE (0.8 kn)' },
+          { t: 0.72, relHour: 0.5, lon: 71.93, lat: 18.88, sog: 12.0, cog: 335, heading: 332, courseChange: true, status: 'COURSE DEVIATION 120°' },
           { t: 0.85, relHour: 1.5, lon: 72.08, lat: 19.05, sog: 15.6, cog: 338, heading: 336, status: 'Accelerating away (15.6 kn)' },
           { t: 1.0, relHour: 2.5, lon: 72.24, lat: 19.22, sog: 15.4, cog: 340, heading: 339, status: 'Transit normal' },
         ] : [
@@ -110,13 +110,13 @@ export default function ShipDriftAnimation({
 
     return [
       {
-        id: 29,
-        mmsi: '419008921',
-        name: 'MT ARABIAN GLORY',
+        id: 1,
+        mmsi: '419008001',
+        name: 'MT ARABIAN STAR',
         type: 'Crude Oil Tanker',
         flag: 'India',
         rank: 1,
-        score: 92.4,
+        score: 82.5,
         isCulprit: true,
         keyframes: [
           { t: 0.0, relHour: -8.0, lon: 71.35, lat: 18.25, sog: 13.8, cog: 212, heading: 212, status: 'Under way engine' },
@@ -343,7 +343,7 @@ export default function ShipDriftAnimation({
         width: Math.round(pBottomRight.x - pTopLeft.x) + 1,
         height: Math.round(pBottomRight.y - pTopLeft.y) + 1,
         satelliteUrl: `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${tile.z}/${tile.y}/${tile.x}`,
-        ecdisUrl: `https://a.basemaps.cartocdn.com/dark_all/${tile.z}/${tile.x}/${tile.y}.png`
+        ecdisUrl: `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${tile.z}/${tile.y}/${tile.x}`
       };
     });
   }, []);
@@ -364,7 +364,7 @@ export default function ShipDriftAnimation({
         width: Math.round(pBottomRight.x - pTopLeft.x) + 1,
         height: Math.round(pBottomRight.y - pTopLeft.y) + 1,
         satelliteUrl: `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${tile.z}/${tile.y}/${tile.x}`,
-        ecdisUrl: `https://a.basemaps.cartocdn.com/dark_all/${tile.z}/${tile.x}/${tile.y}.png`
+        ecdisUrl: `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/${tile.z}/${tile.y}/${tile.x}`
       };
     });
   }, []);
@@ -439,7 +439,7 @@ export default function ShipDriftAnimation({
               }}
               title="Real-world Earth observation satellite photography"
             >
-              🛰️ Real Satellite
+              Satellite Imagery
             </button>
             <button
               onClick={() => setViewMode('ocean')}
@@ -455,7 +455,7 @@ export default function ShipDriftAnimation({
               }}
               title="Dynamic hydrodynamic ocean currents & bathymetry"
             >
-              🌊 Hydrodynamic
+              Hydrodynamic Current
             </button>
             <button
               onClick={() => setViewMode('ecdis')}
@@ -471,7 +471,7 @@ export default function ShipDriftAnimation({
               }}
               title="Official ECDIS dark tactical marine navigation chart"
             >
-              ⚓ ECDIS Radar
+              ECDIS Radar
             </button>
           </div>
 
@@ -491,7 +491,7 @@ export default function ShipDriftAnimation({
               }}
               title="Automatically tracks the tanker with cinematic satellite camera lock"
             >
-              🎥 Follow Vessel
+              Follow Vessel
             </button>
             <button
               onClick={() => setCameraMode('spill')}
@@ -507,7 +507,7 @@ export default function ShipDriftAnimation({
               }}
               title="Focus on oil slick centroid"
             >
-              🎯 Focus Slick
+              Focus Slick
             </button>
             <button
               onClick={() => { setCameraMode('theater'); setZoom(0.55); setPan({ x: 0, y: 0 }); }}
@@ -523,7 +523,7 @@ export default function ShipDriftAnimation({
               }}
               title="Wide regional view: Full Arabian Sea and Western Seaboard of India"
             >
-              🌐 Full Map
+              Full Extent
             </button>
           </div>
 
@@ -1056,7 +1056,7 @@ export default function ShipDriftAnimation({
                     </ellipse>
                     <ellipse cx="14" cy="22" rx="26" ry="12" fill="#18181b" opacity="0.85" />
                     <text x="32" y="12" fill="#ef4444" fontSize="8.5" fontWeight="900" style={{ textShadow: '0 1px 4px #000' }}>
-                      ⚠️ ILLICIT DISCHARGE DETECTED
+                      ALERT: ILLICIT DISCHARGE DETECTED
                     </text>
                   </g>
                 )}

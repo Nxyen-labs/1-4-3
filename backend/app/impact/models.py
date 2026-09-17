@@ -28,6 +28,16 @@ class ImpactAssessment(Base):
     affected_regions = Column(JSON, nullable=True, comment="List of region names")
     vulnerability_details = Column(JSON, nullable=True)
 
+    # Commercial & Natural Harm Valuation
+    commercial_loss_usd = Column(Float, nullable=True)
+    fisheries_loss_usd = Column(Float, nullable=True)
+    port_trade_loss_usd = Column(Float, nullable=True)
+    tourism_loss_usd = Column(Float, nullable=True)
+    natural_loss_index = Column(Float, nullable=True)
+    coral_reef_risk = Column(String(100), nullable=True)
+    mangrove_risk = Column(String(100), nullable=True)
+    endangered_species_threat = Column(JSON, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self):

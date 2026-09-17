@@ -14,6 +14,7 @@ class VesselResponse(BaseModel):
     width_m: Optional[float] = None
     draft_m: Optional[float] = None
     flag_state: Optional[str] = None
+    data_provenance: Optional[str] = "seeded_demo"
     created_at: datetime
 
     class Config:
@@ -28,6 +29,7 @@ class AISTrackPoint(BaseModel):
     cog: Optional[float] = None
     heading: Optional[float] = None
     nav_status: Optional[str] = None
+    data_provenance: Optional[str] = "seeded_demo"
 
 
 class VesselTrackResponse(BaseModel):

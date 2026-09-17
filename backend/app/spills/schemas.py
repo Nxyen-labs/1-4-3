@@ -16,6 +16,7 @@ class SpillPublic(BaseModel):
     validation_status: str
     centroid_lat: Optional[float] = None
     centroid_lon: Optional[float] = None
+    confidence_score: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -35,6 +36,7 @@ class SpillResponse(BaseModel):
     fragmentation_index: Optional[float] = None
     age_estimate: Optional[str] = None
     severity: Optional[str] = None
+    confidence_score: Optional[float] = None
     validation_status: str
     validated_by: Optional[int] = None
     validated_at: Optional[datetime] = None
@@ -45,6 +47,20 @@ class SpillResponse(BaseModel):
     centroid_lat: Optional[float] = None
     centroid_lon: Optional[float] = None
     slick_geojson: Optional[dict] = None
+    age_hours_min: Optional[float] = None
+    age_hours_max: Optional[float] = None
+    age_hours_likely: Optional[float] = None
+    age_basis: Optional[list] = None
+    origin_time_earliest: Optional[datetime] = None
+    origin_time_latest: Optional[datetime] = None
+    origin_time_likely: Optional[datetime] = None
+    timestamp_source: Optional[str] = None
+    georef_method: Optional[str] = None
+    georef_note: Optional[str] = None
+    pixel_size_m: Optional[float] = None
+    wind_gate: Optional[dict] = None
+    sar_sha256: Optional[str] = None
+    data_provenance: Optional[str] = "seeded_demo"
     created_at: datetime
 
     class Config:

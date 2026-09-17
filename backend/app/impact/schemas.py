@@ -21,6 +21,14 @@ class ImpactPublicResponse(BaseModel):
     ecological_sensitivity_score: Optional[float] = None
     affected_regions: Optional[List[str]] = None
     vulnerability_details: Optional[dict] = None
+    commercial_loss_usd: Optional[float] = None
+    fisheries_loss_usd: Optional[float] = None
+    port_trade_loss_usd: Optional[float] = None
+    tourism_loss_usd: Optional[float] = None
+    natural_loss_index: Optional[float] = None
+    coral_reef_risk: Optional[str] = None
+    mangrove_risk: Optional[str] = None
+    endangered_species_threat: Optional[List[str]] = None
     severity: Optional[str] = None
     region: Optional[str] = None
     centroid_lat: Optional[float] = None

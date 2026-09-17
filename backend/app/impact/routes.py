@@ -12,6 +12,40 @@ from app.spills.models import Spill
 router = APIRouter(tags=["impact"])
 
 
+def _build_impact_response(impact: ImpactAssessment, spill: Spill) -> ImpactPublicResponse:
+    return ImpactPublicResponse(
+        id=impact.id,
+        spill_id=impact.spill_id,
+        spill_name=spill.name,
+        spill_detected_at=spill.detected_at,
+        affected_area_sq_km=impact.affected_area_sq_km,
+        coast_proximity_km=impact.coast_proximity_km,
+        overlaps_mpa=impact.overlaps_mpa,
+        overlaps_coral=impact.overlaps_coral,
+        overlaps_eez=impact.overlaps_eez,
+        nearest_mpa_name=impact.nearest_mpa_name,
+        nearest_mpa_distance_km=impact.nearest_mpa_distance_km,
+        priority=impact.priority,
+        estimated_cleanup_cost_usd=impact.estimated_cleanup_cost_usd,
+        ecological_sensitivity_score=impact.ecological_sensitivity_score,
+        affected_regions=impact.affected_regions,
+        vulnerability_details=impact.vulnerability_details,
+        commercial_loss_usd=getattr(impact, "commercial_loss_usd", None),
+        fisheries_loss_usd=getattr(impact, "fisheries_loss_usd", None),
+        port_trade_loss_usd=getattr(impact, "port_trade_loss_usd", None),
+        tourism_loss_usd=getattr(impact, "tourism_loss_usd", None),
+        natural_loss_index=getattr(impact, "natural_loss_index", None),
+        coral_reef_risk=getattr(impact, "coral_reef_risk", None),
+        mangrove_risk=getattr(impact, "mangrove_risk", None),
+        endangered_species_threat=getattr(impact, "endangered_species_threat", None),
+        severity=spill.severity,
+        region=spill.region,
+        centroid_lat=getattr(spill, "centroid_lat", None),
+        centroid_lon=getattr(spill, "centroid_lon", None),
+        created_at=impact.created_at,
+    )
+
+
 # =====================================================
 # PUBLIC ENDPOINTS — No authentication required
 # No vessel/attribution data returned under any circumstance
@@ -45,40 +79,16 @@ async def list_public_impacts(
     result = await db.execute(query)
     rows = result.all()
 
-    return [
-        ImpactPublicResponse(
-            id=impact.id,
-            spill_id=impact.spill_id,
-            spill_name=spill.name,
-            spill_detected_at=spill.detected_at,
-            affected_area_sq_km=impact.affected_area_sq_km,
-            coast_proximity_km=impact.coast_proximity_km,
-            overlaps_mpa=impact.overlaps_mpa,
-            overlaps_coral=impact.overlaps_coral,
-            overlaps_eez=impact.overlaps_eez,
-            nearest_mpa_name=impact.nearest_mpa_name,
-            nearest_mpa_distance_km=impact.nearest_mpa_distance_km,
-            priority=impact.priority,
-            estimated_cleanup_cost_usd=impact.estimated_cleanup_cost_usd,
-            ecological_sensitivity_score=impact.ecological_sensitivity_score,
-            affected_regions=impact.affected_regions,
-            vulnerability_details=impact.vulnerability_details,
-            severity=spill.severity,
-            region=spill.region,
-            centroid_lat=getattr(spill, "centroid_lat", None),
-            centroid_lon=getattr(spill, "centroid_lon", None),
-            created_at=impact.created_at,
-        )
-        for impact, spill in rows
-    ]
+    return [_build_impact_response(impact, spill) for impact, spill in rows]
 
 
+@router.get("/api/impact/{spill_id}/assessment", response_model=ImpactPublicResponse)
 @router.get("/api/public/impacts/{spill_id}", response_model=ImpactPublicResponse)
 async def get_public_impact(
     spill_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Public: single spill impact detail. NO vessel data."""
+    """Get single spill impact detail (supports /api/impact/{id}/assessment and /api/public/impacts/{id})."""
     result = await db.execute(
         select(ImpactAssessment, Spill)
         .join(Spill, ImpactAssessment.spill_id == Spill.id)
@@ -89,29 +99,7 @@ async def get_public_impact(
         raise HTTPException(status_code=404, detail="Impact assessment not found")
 
     impact, spill = row
-    return ImpactPublicResponse(
-        id=impact.id,
-        spill_id=impact.spill_id,
-        spill_name=spill.name,
-        spill_detected_at=spill.detected_at,
-        affected_area_sq_km=impact.affected_area_sq_km,
-        coast_proximity_km=impact.coast_proximity_km,
-        overlaps_mpa=impact.overlaps_mpa,
-        overlaps_coral=impact.overlaps_coral,
-        overlaps_eez=impact.overlaps_eez,
-        nearest_mpa_name=impact.nearest_mpa_name,
-        nearest_mpa_distance_km=impact.nearest_mpa_distance_km,
-        priority=impact.priority,
-        estimated_cleanup_cost_usd=impact.estimated_cleanup_cost_usd,
-        ecological_sensitivity_score=impact.ecological_sensitivity_score,
-        affected_regions=impact.affected_regions,
-        vulnerability_details=impact.vulnerability_details,
-        severity=spill.severity,
-        region=spill.region,
-        centroid_lat=getattr(spill, "centroid_lat", None),
-        centroid_lon=getattr(spill, "centroid_lon", None),
-        created_at=impact.created_at,
-    )
+    return _build_impact_response(impact, spill)
 
 
 @router.get("/api/public/stats", response_model=PublicStatsResponse)
@@ -177,32 +165,7 @@ async def get_public_stats(
     )
     recent_result = await db.execute(recent_query)
     recent_rows = recent_result.all()
-    recent_spills = [
-        ImpactPublicResponse(
-            id=impact.id,
-            spill_id=impact.spill_id,
-            spill_name=spill.name,
-            spill_detected_at=spill.detected_at,
-            affected_area_sq_km=impact.affected_area_sq_km,
-            coast_proximity_km=impact.coast_proximity_km,
-            overlaps_mpa=impact.overlaps_mpa,
-            overlaps_coral=impact.overlaps_coral,
-            overlaps_eez=impact.overlaps_eez,
-            nearest_mpa_name=impact.nearest_mpa_name,
-            nearest_mpa_distance_km=impact.nearest_mpa_distance_km,
-            priority=impact.priority,
-            estimated_cleanup_cost_usd=impact.estimated_cleanup_cost_usd,
-            ecological_sensitivity_score=impact.ecological_sensitivity_score,
-            affected_regions=impact.affected_regions,
-            vulnerability_details=impact.vulnerability_details,
-            severity=spill.severity,
-            region=spill.region,
-            centroid_lat=getattr(spill, "centroid_lat", None),
-            centroid_lon=getattr(spill, "centroid_lon", None),
-            created_at=impact.created_at,
-        )
-        for impact, spill in recent_rows
-    ]
+    recent_spills = [_build_impact_response(impact, spill) for impact, spill in recent_rows]
 
     # Pre-calculated timeframe metrics for fast frontend switching
     timeframe_breakdown = {

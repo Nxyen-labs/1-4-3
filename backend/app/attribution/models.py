@@ -40,7 +40,7 @@ class AnomalyFlag(Base):
     __tablename__ = "anomaly_flags"
 
     id = Column(Integer, primary_key=True, index=True)
-    vessel_id = Column(Integer, ForeignKey("vessels.id"), nullable=False, index=True)
+    vessel_id = Column(Integer, ForeignKey("vessels.id"), nullable=True, index=True)
     spill_id = Column(Integer, ForeignKey("spills.id"), nullable=True, index=True)
     anomaly_type = Column(
         String(50),
@@ -56,3 +56,27 @@ class AnomalyFlag(Base):
 
     def __repr__(self):
         return f"<AnomalyFlag {self.anomaly_type} vessel={self.vessel_id}>"
+
+
+class AttributionRun(Base):
+    __tablename__ = "attribution_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    spill_id = Column(Integer, ForeignKey("spills.id"), nullable=False, index=True)
+    run_at = Column(DateTime(timezone=True), server_default=func.now())
+    origin_time_start = Column(DateTime(timezone=True), nullable=True)
+    origin_time_end = Column(DateTime(timezone=True), nullable=True)
+    origin_window_source = Column(String(100), nullable=True)
+    cone_source = Column(String(100), nullable=True)
+    origin_lat = Column(Float, nullable=True)
+    origin_lon = Column(Float, nullable=True)
+    cone_geojson = Column(JSON, nullable=True)
+    vessels_in_window = Column(Integer, nullable=True)
+    vessels_candidates = Column(Integer, nullable=True)
+    vessels_filtered = Column(Integer, nullable=True)
+    filtered_out = Column(JSON, nullable=True)
+    parameters = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<AttributionRun spill={self.spill_id} candidates={self.vessels_candidates}>"

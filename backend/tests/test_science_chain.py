@@ -119,6 +119,19 @@ def test_drift_outputs_cone_heatmap_and_forcing_timeline():
     assert "current_source" in r["parameters"] and "wind_source" in r["parameters"]
 
 
+def test_coastline_segment_collision_stops_particles():
+    """Particles pushed eastward towards the Mumbai coastline must be stopped at the coast LineString."""
+    t0 = datetime(2024, 3, 15, 6, 0, tzinfo=timezone.utc)
+    # Start just offshore of Mumbai and push strongly East (into land)
+    r = simulate_drift(18.90, 72.78, t0, direction="forward", duration_hours=6, num_particles=20,
+                       diffusion_coeff=0.0, initial_spread_deg=0.0,
+                       overrides={"current_speed_ms": 1.0, "current_dir_deg": 90.0, "wind_speed_ms": 0.0, "wind_dir_deg": 0.0})
+    assert r["parameters"]["beached_particles"] == 20
+    # Longitude should stop around ~72.81 (coastline) and not penetate inland past 72.85
+    assert 72.80 < r["trajectory_points"][-1]["lon"] < 72.83
+
+
+
 # ---------------- scoring ----------------
 def test_scoring_weights_sum_to_one():
     assert abs(sum(WEIGHTS.values()) - 1.0) < 1e-9

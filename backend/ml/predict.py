@@ -4,17 +4,17 @@ Loads trained model, predicts mask, extracts polygons via OpenCV contours.
 """
 import os
 import numpy as np
-import torch
 import cv2
 from shapely.geometry import Polygon, MultiPolygon
-import segmentation_models_pytorch as smp
 
-
-CLASS_NAMES = {0: "Oil", 1: "Look-alike", 2: "Sea"}
+CLASS_NAMES = {0: "Oil", 1: "Look-alike", 2: "No oil"}
 
 
 def load_model(model_path, device=None):
     """Load trained U-Net model from checkpoint."""
+    import torch
+    import segmentation_models_pytorch as smp
+
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -35,6 +35,7 @@ def load_model(model_path, device=None):
 
 def predict_mask(model, image_input, image_size=512, device=None):
     """Run inference on a single SAR image (filepath or numpy array). Returns predicted class mask + probabilities."""
+    import torch
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

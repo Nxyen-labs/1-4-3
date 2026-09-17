@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 @router.get("/{spill_id}/pdf")
 async def generate_pdf_report(
     spill_id: int,
-    user: User = Depends(RoleChecker(["regional_manager", "higher_authority"])),
+    user: User = Depends(RoleChecker(["coast_guard", "regional_manager", "higher_authority"])),
     db: AsyncSession = Depends(get_db),
 ):
     """Generate PDF evidence report for a spill. Role-scoped content."""
@@ -44,21 +44,18 @@ async def generate_pdf_report(
     )
     suspects = suspects_result.all()
 
-    # Build HTML report
-    from app.reports.generator import render_report_html, html_to_pdf
-    html = render_report_html(
+    from app.reports.generator import build_evidence_pdf
+    pdf_bytes = build_evidence_pdf(
         spill=spill,
         impact=impact,
-        suspects=suspects if user.role != "public" else [],
+        suspects=suspects,
         user_role=user.role,
     )
-
-    pdf_bytes = html_to_pdf(html)
 
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'attachment; filename="report-{spill.name}.pdf"'
+            "Content-Disposition": f'attachment; filename="SARVAS-Forensic-Report-{spill.name}.pdf"'
         },
     )

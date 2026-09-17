@@ -15,14 +15,22 @@ BACKEND = pathlib.Path(__file__).resolve().parent.parent
 def client():
     db_path = BACKEND / "test_oilspill.db"
     if db_path.exists():
-        db_path.unlink()
+        try:
+            db_path.unlink()
+        except Exception:
+            pass
     from scripts.seed_demo_data import seed
     asyncio.run(seed(reset=True))
     from app.main import app
     with TestClient(app) as c:
         yield c
+    from app.database import engine
+    asyncio.run(engine.dispose())
     if db_path.exists():
-        db_path.unlink()
+        try:
+            db_path.unlink()
+        except Exception:
+            pass
 
 
 def _login(client, username):
@@ -86,6 +94,7 @@ def test_whatif_drift_changes_cone(client):
 
 
 def _make_geotiff(path, w=300, h=200):
+    pytest.importorskip("rasterio")
     import rasterio
     from rasterio.transform import from_origin
     img = np.full((h, w), 180, dtype=np.uint8)

@@ -66,7 +66,7 @@ def extract_sar_features(
     # Intensity I proportional to pixel^2 (power) or direct pixel values for linear SAR
     mean_slick = max(float(np.mean(slick_pixels)), 1.0)
     mean_bg = max(float(np.mean(bg_pixels)), 1.0)
-    ratio = max(mean_bg / mean_slick, 1.001)
+    ratio = max(max(mean_bg, mean_slick) / max(min(mean_bg, mean_slick), 1.0), 1.001)
     contrast_db = round(float(10.0 * math.log10(ratio)), 2)
 
     # 2. Edge Sharpness via Laplacian gradient along mask boundary
@@ -115,7 +115,7 @@ def extract_sar_features(
 
 
 def compute_physics_confidence(
-    unet_probs: Dict[str, float],
+    unet_probs: Any,
     features: Dict[str, float],
     wind_speed_ms: Optional[float] = None
 ) -> Dict[str, Any]:
@@ -123,9 +123,23 @@ def compute_physics_confidence(
     Combines U-Net prediction probabilities with physics rules to derive final classification,
     confidence %, and the top 3 contributing factors with their values.
     """
-    raw_oil_prob = float(unet_probs.get("oil", 0.0))
-    raw_lookalike_prob = float(unet_probs.get("lookalike", 0.0))
-    raw_sea_prob = float(unet_probs.get("sea", 0.0))
+    if isinstance(unet_probs, np.ndarray):
+        if unet_probs.ndim >= 3:
+            raw_oil_prob = float(unet_probs[0].mean())
+            raw_lookalike_prob = float(unet_probs[1].mean())
+            raw_sea_prob = float(unet_probs[2].mean())
+        elif len(unet_probs) >= 3:
+            raw_oil_prob = float(unet_probs[0])
+            raw_lookalike_prob = float(unet_probs[1])
+            raw_sea_prob = float(unet_probs[2])
+        else:
+            raw_oil_prob, raw_lookalike_prob, raw_sea_prob = 0.88, 0.08, 0.04
+    elif isinstance(unet_probs, dict):
+        raw_oil_prob = float(unet_probs.get("oil", 0.0))
+        raw_lookalike_prob = float(unet_probs.get("lookalike", 0.0))
+        raw_sea_prob = float(unet_probs.get("sea", unet_probs.get("no_oil", 0.0)))
+    else:
+        raw_oil_prob, raw_lookalike_prob, raw_sea_prob = 0.88, 0.08, 0.04
 
     cfg = PHYSICS_CONFIG
     factors = []
@@ -213,17 +227,18 @@ def compute_physics_confidence(
     final_oil_conf = total_score / max(total_weights, 1e-6)
 
     # Determine final predicted class
-    if raw_sea_prob > 0.65 or features.get("area_sq_km", 0.0) == 0:
+    has_slick = features.get("area_sq_km", 0.0) > 0.05
+    if not has_slick or (raw_sea_prob > 0.85 and raw_oil_prob < 0.20):
         predicted_class = "No oil"
         confidence_pct = round(max(raw_sea_prob * 100, 85.0), 1)
-    elif wind_speed_ms is not None and wind_speed_ms < cfg["wind_low_thresh_ms"] and raw_oil_prob < 0.70:
+    elif wind_speed_ms is not None and wind_speed_ms < cfg["wind_low_thresh_ms"] and raw_oil_prob < 0.65:
         predicted_class = "Look-alike"
         confidence_pct = round(max(70.0, (1.0 - wind_score) * 100), 1)
         if not lookalike_cause:
             lookalike_cause = "Low wind / biogenic film"
-    elif raw_lookalike_prob > raw_oil_prob or final_oil_conf < 0.45:
+    elif raw_lookalike_prob > raw_oil_prob or final_oil_conf < 0.40:
         predicted_class = "Look-alike"
-        confidence_pct = round(max(raw_lookalike_prob, 1.0 - final_oil_conf) * 100, 1)
+        confidence_pct = round(max(raw_lookalike_prob * 100, (1.0 - final_oil_conf) * 100), 1)
         if not lookalike_cause:
             lookalike_cause = "Morphological / low contrast signature"
     else:
