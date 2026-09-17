@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # Oil Spill Intelligence Platform - .gitignore
 # =========================================================
 
@@ -80,6 +80,7 @@ backend/data/gis/bathymetry/*
 !backend/data/gis/bathymetry/.gitkeep
 backend/data/cmems/*.nc
 !backend/data/cmems/.gitkeep
+backend/data/sar/*.tif
 
 # Ignore accidental nested backend directory
 backend/backend/
