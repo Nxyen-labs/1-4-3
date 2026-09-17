@@ -593,11 +593,15 @@ export default function SarUploadDeck({ onSpillUploaded, onNavigate }) {
               </div>
 
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '10px 14px' }}>
-                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Model Confidence</div>
-                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#16a34a', marginTop: '2px' }}>
-                  {Math.round(((resultSpill.confidence_score != null ? resultSpill.confidence_score : resultSpill.model_confidence?.oil) ?? 0.88) * 100)}%
+                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                  {resultSpill.validation_status === 'lookalike' ? 'Look-Alike Confidence' : 'Model Confidence'}
                 </div>
-                <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '2px' }}>U-Net + Physics Gate</div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 700, color: resultSpill.validation_status === 'lookalike' ? '#d97706' : '#16a34a', marginTop: '2px' }}>
+                  {Math.round(((resultSpill.confidence_score != null ? resultSpill.confidence_score : (resultSpill.validation_status === 'lookalike' ? resultSpill.model_confidence?.lookalike : resultSpill.model_confidence?.oil)) ?? 0.88) * 100)}%
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '2px' }}>
+                  {resultSpill.validation_status === 'lookalike' ? 'False Alarm Suppressed' : 'U-Net + Physics Gate'}
+                </div>
               </div>
 
               <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '10px 14px' }}>

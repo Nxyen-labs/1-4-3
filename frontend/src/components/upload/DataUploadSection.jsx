@@ -266,7 +266,8 @@ export default function DataUploadSection({ onUploadSuccess }) {
                   <div><strong>Centroid:</strong> {sarResult.centroid_lat}°N, {sarResult.centroid_lon}°E</div>
                   <div><strong>Fragmentation Index:</strong> {sarResult.fragmentation_index}</div>
                   <div><strong>Elongation Ratio:</strong> {sarResult.elongation_ratio}</div>
-                  <div><strong>AI Detection Confidence:</strong> {(sarResult.model_confidence?.oil * 100).toFixed(0)}%</div>
+                  <div><strong>Classification:</strong> {sarResult.validation_status === 'lookalike' ? 'Look-Alike (Natural Film / Low Wind)' : 'Confirmed Oil Slick'}</div>
+                  <div><strong>AI Detection Confidence:</strong> {(((sarResult.validation_status === 'lookalike' ? (sarResult.model_confidence?.lookalike ?? sarResult.confidence_score) : (sarResult.model_confidence?.oil ?? sarResult.confidence_score)) ?? 0.88) * 100).toFixed(0)}%</div>
                 </div>
               </div>
             ) : (
