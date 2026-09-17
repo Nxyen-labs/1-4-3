@@ -53,45 +53,73 @@ export default function TelemetryConfidenceView({
 
   // Model confidence & classification calculations
   const modelConf = activeSpill.model_confidence || {};
-  const oilProb = typeof modelConf.oil === 'number' ? Math.round(modelConf.oil * 100) : 89;
-  const lookalikeProb = typeof modelConf.lookalike === 'number' ? Math.round(modelConf.lookalike * 100) : 8;
-  const seaProb = typeof (modelConf.no_oil || modelConf.sea) === 'number' ? Math.round((modelConf.no_oil || modelConf.sea) * 100) : 3;
+  const finalProbs = modelConf.final_probabilities || {};
 
-  // Scientific classification: strictly based on model prediction or validation status (NEVER by spill volume/severity tier)
+  // Single source of truth for probabilities: final_probabilities from backend (or legacy fallback)
+  const oilProb = typeof finalProbs.oil === 'number'
+    ? Math.round(finalProbs.oil * 100)
+    : (typeof modelConf.oil === 'number' ? Math.round(modelConf.oil * 100) : 89);
+
+  const lookalikeProb = typeof finalProbs.lookalike === 'number'
+    ? Math.round(finalProbs.lookalike * 100)
+    : (typeof modelConf.lookalike === 'number' ? Math.round(modelConf.lookalike * 100) : 8);
+
+  const seaProb = typeof finalProbs.sea === 'number'
+    ? Math.round(finalProbs.sea * 100)
+    : (typeof modelConf.sea === 'number'
+        ? Math.round(modelConf.sea * 100)
+        : (typeof modelConf.no_oil === 'number' ? Math.round(modelConf.no_oil * 100) : 3));
+
+  // Scientific classification: strictly based on model prediction or validation status
+  const finalClass = modelConf.final_class || modelConf.classification;
   const isLookalike = (activeSpill.validation_status === 'lookalike') ||
-                      (modelConf.classification === 'Look-alike') ||
-                      (lookalikeProb > oilProb) ||
-                      (activeSpill.name?.toLowerCase().includes('lookalike'));
+                      (finalClass === 'Look-alike') ||
+                      (lookalikeProb > oilProb && oilProb < 50);
 
-  const primaryScore = isLookalike ? lookalikeProb : (activeSpill.confidence_score != null ? Math.round(activeSpill.confidence_score * 100) : oilProb);
-  const classificationText = isLookalike ? 'LOOK-ALIKE RISK' : 'CONFIRMED OIL SLICK';
-  const classificationColor = isLookalike ? '#d97706' : '#0f2e59';
-  const classificationBadgeBg = isLookalike ? '#fef3c7' : '#fee2e2';
-  const classificationBadgeColor = isLookalike ? '#b45309' : '#dc2626';
+  const isCleanSea = (activeSpill.validation_status === 'dismissed') || (finalClass === 'No oil');
+
+  // Gauge score strictly matches the predicted class probability
+  const primaryScore = isLookalike
+    ? lookalikeProb
+    : (isCleanSea ? seaProb : (activeSpill.confidence_score != null ? Math.round(activeSpill.confidence_score * 100) : oilProb));
+
+  const classificationText = isLookalike
+    ? 'LOOK-ALIKE RISK'
+    : (isCleanSea ? 'CLEAN SEA / NO SLICK' : 'CONFIRMED OIL SLICK');
+  const classificationColor = isLookalike ? '#d97706' : (isCleanSea ? '#0284c7' : '#0f2e59');
+  const classificationBadgeBg = isLookalike ? '#fef3c7' : (isCleanSea ? '#e0f2fe' : '#fee2e2');
+  const classificationBadgeColor = isLookalike ? '#b45309' : (isCleanSea ? '#0369a1' : '#dc2626');
 
   // SAR Physics & Morphology parameters (dynamically connected to active spill telemetry)
-  const contrastDb = activeSpill.contrast_db || modelConf.contrast_db || (isLookalike ? -1.8 : - Number((5.2 + (oilProb / 100) * 3.6).toFixed(1)));
+  const isMeasuredContrast = activeSpill.contrast_db != null || modelConf.contrast_db != null;
+  const rawContrast = activeSpill.contrast_db || modelConf.contrast_db;
+  const contrastDb = rawContrast != null ? Number(rawContrast.toFixed(1)) : (isLookalike ? -1.8 : - Number((5.2 + (oilProb / 100) * 3.6).toFixed(1)));
   const contrastTag = Math.abs(contrastDb) >= 5.0
     ? 'Strong Capillary Damping'
     : (Math.abs(contrastDb) >= 3.0 ? 'Moderate Damping' : 'Weak Surface Damping');
 
-  const elongationVal = activeSpill.elongation_ratio != null ? Number(activeSpill.elongation_ratio.toFixed(1)) : (isLookalike ? 1.2 : 3.2);
+  const isMeasuredElongation = activeSpill.elongation_ratio != null;
+  const elongationVal = isMeasuredElongation ? Number(activeSpill.elongation_ratio.toFixed(1)) : (isLookalike ? 1.2 : 3.2);
   const elongationTag = elongationVal >= 2.5
     ? 'Linear Moving Vessel Wake'
     : (elongationVal >= 1.8 ? 'Elliptical Current Drift' : 'Amorphous / Natural Film');
 
-  const fragmentationVal = activeSpill.fragmentation_index != null ? Number(activeSpill.fragmentation_index.toFixed(1)) : (isLookalike ? 1.0 : 2.1);
+  const isMeasuredFrag = activeSpill.fragmentation_index != null;
+  const fragmentationVal = isMeasuredFrag ? Number(activeSpill.fragmentation_index.toFixed(1)) : (isLookalike ? 1.0 : 2.1);
   const fragmentationTag = fragmentationVal < 1.5
     ? 'Continuous Fresh Slick'
     : (fragmentationVal < 3.5 ? 'Early Dispersion Stage' : 'Fragmented Weathered Patches');
 
-  const windSpeed = activeSpill.wind_gate?.wind_speed_ms != null
-    ? activeSpill.wind_gate.wind_speed_ms
+  const isMeasuredWind = activeSpill.wind_gate?.wind_speed_ms != null;
+  const windSpeed = isMeasuredWind
+    ? Number(activeSpill.wind_gate.wind_speed_ms.toFixed(1))
     : (isLookalike ? 1.8 : 4.8);
   const isWindValid = windSpeed >= 3.0 && windSpeed <= 12.0;
   const windGateStatus = isWindValid ? 'VALID' : (windSpeed < 3.0 ? 'LOW WIND SPECULAR' : 'HIGH SEA STATE');
   const windGateColor = isWindValid ? '#16a34a' : '#d97706';
-  const windGateTag = isWindValid ? `${windSpeed} m/s (3–12 m/s Window)` : `${windSpeed} m/s (Calm False Alarm Risk)`;
+  const windGateTag = isWindValid
+    ? `${windSpeed} m/s (3–12 m/s Window)`
+    : `${windSpeed} m/s (${windSpeed < 3.0 ? 'Calm False Alarm Risk' : 'Wave Suppression'})`;
 
   // Format estimated age
   const ageDisplay = activeSpill.age_hours_likely
@@ -224,11 +252,11 @@ export default function TelemetryConfidenceView({
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  <span style={{ fontSize: '1.4rem', fontWeight: 900, color: isLookalike ? '#d97706' : '#0f2e59', lineHeight: 1 }}>
+                  <span style={{ fontSize: '1.4rem', fontWeight: 900, color: isLookalike ? '#d97706' : (isCleanSea ? '#0284c7' : '#0f2e59'), lineHeight: 1 }}>
                     {primaryScore}%
                   </span>
                   <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600 }}>
-                    {isLookalike ? 'Look-Alike' : 'Confidence'}
+                    {isLookalike ? 'Look-Alike' : (isCleanSea ? 'Clean Sea' : 'Confidence')}
                   </span>
                 </div>
               </div>
@@ -237,13 +265,15 @@ export default function TelemetryConfidenceView({
                 <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700, letterSpacing: '0.4px' }}>
                   Model Decision
                 </div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: isLookalike ? '#d97706' : '#dc2626', marginTop: '2px' }}>
+                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: isLookalike ? '#d97706' : (isCleanSea ? '#0284c7' : '#dc2626'), marginTop: '2px' }}>
                   {classificationText}
                 </div>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.74rem', color: '#475569', lineHeight: 1.4 }}>
                   {isLookalike
                     ? 'High probability of low-wind shadow or natural biogenic surface film.'
-                    : 'Spectral signatures match verified hydrocarbon emulsion damping.'}
+                    : (isCleanSea
+                        ? 'No significant hydrocarbon damping detected on sea surface.'
+                        : 'Spectral signatures match verified hydrocarbon emulsion damping.')}
                 </p>
               </div>
             </div>
@@ -301,7 +331,7 @@ export default function TelemetryConfidenceView({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
               <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: '0.66rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>
-                  Backscatter Contrast
+                  Backscatter Contrast {!isMeasuredContrast && <span style={{ color: '#94a3b8', fontSize: '0.6rem' }}>(EST)</span>}
                 </div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
                   {contrastDb} dB
@@ -313,7 +343,7 @@ export default function TelemetryConfidenceView({
 
               <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: '0.66rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>
-                  Elongation Ratio
+                  Elongation Ratio {!isMeasuredElongation && <span style={{ color: '#94a3b8', fontSize: '0.6rem' }}>(EST)</span>}
                 </div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
                   {elongationVal}:1
@@ -325,7 +355,7 @@ export default function TelemetryConfidenceView({
 
               <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: '0.66rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>
-                  Fragmentation Index
+                  Fragmentation Index {!isMeasuredFrag && <span style={{ color: '#94a3b8', fontSize: '0.6rem' }}>(EST)</span>}
                 </div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', marginTop: '2px' }}>
                   {fragmentationVal}
@@ -337,7 +367,7 @@ export default function TelemetryConfidenceView({
 
               <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: '0.66rem', textTransform: 'uppercase', color: '#64748b', fontWeight: 700 }}>
-                  ERA5 Wind Speed Gate
+                  ERA5 Wind Speed Gate {!isMeasuredWind && <span style={{ color: '#94a3b8', fontSize: '0.6rem' }}>(EST)</span>}
                 </div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 800, color: windGateColor, marginTop: '2px' }}>
                   {windGateStatus}
@@ -350,17 +380,21 @@ export default function TelemetryConfidenceView({
 
             <div style={{
               padding: '10px 12px',
-              background: isLookalike ? '#fef3c7' : '#eff6ff',
-              border: `1px solid ${isLookalike ? '#fde68a' : '#bfdbfe'}`,
+              background: isLookalike ? '#fef3c7' : (isCleanSea ? '#e0f2fe' : '#eff6ff'),
+              border: `1px solid ${isLookalike ? '#fde68a' : (isCleanSea ? '#bae6fd' : '#bfdbfe')}`,
               borderRadius: '5px',
               fontSize: '0.73rem',
-              color: isLookalike ? '#92400e' : '#1e40af',
+              color: isLookalike ? '#92400e' : (isCleanSea ? '#0369a1' : '#1e40af'),
               lineHeight: 1.4
             }}>
               <strong>Physical Validation:</strong>{' '}
-              {isLookalike
-                ? `Surface wind speed of ${windSpeed} m/s falls below the Bragg resonance threshold (< 3.0 m/s), creating specular reflection calms. Combined with weak backscatter attenuation (${contrastDb} dB) and amorphous shape (${elongationVal}:1), physics indicators suggest a natural low-wind shadow rather than mineral crude oil.`
-                : `Surface wind speeds (${windSpeed} m/s) support persistent dark slick backscatter suppression without false alarms. Sharp contrast (${contrastDb} dB) and linear elongation (${elongationVal}:1) confirm capillary wave damping along a moving vessel trajectory.`}
+              {windSpeed < 3.0
+                ? `Surface wind speed of ${windSpeed} m/s falls below the Bragg resonance threshold (< 3.0 m/s), creating specular reflection calms. Combined with weak attenuation (${contrastDb} dB) and amorphous shape (${elongationVal}:1), physics indicators suggest natural low-wind dampening rather than mineral crude oil.`
+                : isLookalike
+                  ? `Surface wind speed of ${windSpeed} m/s is within the active wave window, but low backscatter attenuation (${contrastDb} dB) and shape (${elongationVal}:1) indicate natural surface films or look-alike dampening rather than mineral crude.`
+                  : (isCleanSea
+                      ? `Surface backscatter shows uniform sea roughness (${contrastDb} dB contrast) under ${windSpeed} m/s wind. No anomalous hydrocarbon damping signatures observed.`
+                      : `Surface wind speed (${windSpeed} m/s) supports persistent dark slick backscatter suppression without false alarms. Sharp contrast (${contrastDb} dB) and linear elongation (${elongationVal}:1) confirm capillary wave damping along a moving vessel trajectory.`)}
             </div>
           </div>
         </div>
@@ -542,7 +576,7 @@ export default function TelemetryConfidenceView({
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
                   {topCandidate.ais_gap_score > 20 && (
                     <span style={{ fontSize: '0.68rem', background: '#fee2e2', color: '#991b1b', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
-                      AIS Gap ({topCandidate.explanation?.evidence?.ais_gaps?.[0]?.gap_minutes?.toFixed(0) || '90'}m)
+                      AIS Gap ({topCandidate.explanation?.evidence?.ais_gaps?.[0]?.gap_minutes?.toFixed(0) || Math.round((topCandidate.ais_gap_score || 45) * 1.5)}m)
                     </span>
                   )}
                   {topCandidate.speed_anomaly_score > 20 && (
