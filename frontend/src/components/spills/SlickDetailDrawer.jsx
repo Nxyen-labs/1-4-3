@@ -28,8 +28,10 @@ export default function SlickDetailDrawer({
   if (!isOpen || !spill) return null;
 
   // Derive classification badge
-  const confPct = Math.round(((spill.confidence_score != null ? spill.confidence_score : spill.model_confidence?.oil) ?? 0.88) * 100);
-  const isLookalike = spill.severity === 'low' || spill.name?.toLowerCase().includes('lookalike');
+  const isLookalike = spill.validation_status === 'lookalike' ||
+                      spill.model_confidence?.classification === 'Look-alike' ||
+                      spill.name?.toLowerCase().includes('lookalike');
+  const confPct = Math.round(((spill.confidence_score != null ? spill.confidence_score : (isLookalike ? spill.model_confidence?.lookalike : spill.model_confidence?.oil)) ?? 0.88) * 100);
   const classificationText = isLookalike ? 'Look-alike Anomaly' : 'Confirmed Oil Slick';
 
   // Format estimated age
