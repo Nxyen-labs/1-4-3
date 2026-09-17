@@ -11,6 +11,8 @@ import {
 // Sector detection based on incident latitude and longitude
 export const detectSectorForSpill = (lat, lon) => {
   if (!lat || !lon) return 'mumbai';
+  // Andaman & Nicobar
+  if (lon >= 90.0) return 'andaman_area';
   // Gujarat & Gulf of Kutch
   if (lat >= 21.0 && lon <= 71.5) return 'gujarat';
   // Mumbai Offshore Basin & JNPT

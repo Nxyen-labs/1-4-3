@@ -3,6 +3,7 @@ import * as maplibregl from 'maplibre-gl';
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import { GeoJsonLayer, ScatterplotLayer, PathLayer, PolygonLayer } from '@deck.gl/layers';
 import { gisAPI } from '../../api/client';
+import { detectSectorForSpill } from './MapView';
 
 // 100% Free Public High-Resolution Basemaps — No API Keys, No Watermarks
 const FREE_BASEMAP_STYLES = {
@@ -137,7 +138,7 @@ const SECTORS = {
   gujarat: { center: [69.6, 22.5], zoom: 8.0, name: 'Gujarat Area' },
   goa_konkan: { center: [73.6, 15.8], zoom: 8.2, name: 'Goa & Konkan' },
   kerala: { center: [75.8, 10.5], zoom: 8.0, name: 'Kerala Area' },
-  tamil_nadu: { center: [79.8, 11.2], zoom: 8.0, name: 'Tamil Nadu' },
+  tamil_nadu: { center: [79.5, 10.2], zoom: 8.0, name: 'Tamil Nadu' },
   andhra_odisha: { center: [84.5, 18.8], zoom: 7.8, name: 'Andhra & Odisha' },
   bengal: { center: [88.2, 21.8], zoom: 8.2, name: 'Bengal Area' },
   andaman_area: { center: [92.8, 12.0], zoom: 7.5, name: 'Andaman Area' },
@@ -355,24 +356,84 @@ export default function TacticalDeckMap({
     };
   }, []);
 
+  const prevSectorRef = useRef(sector);
+  const prevSpillIdRef = useRef(selectedSpill?.id);
+
   // Fly to sector or selected spill
   useEffect(() => {
     if (!mapRef.current) return;
-    if (selectedSpill?.centroid_lat && selectedSpill?.centroid_lon) {
+
+    const sectorChanged = prevSectorRef.current !== sector;
+    const spillChanged = prevSpillIdRef.current !== selectedSpill?.id;
+
+    prevSectorRef.current = sector;
+    prevSpillIdRef.current = selectedSpill?.id;
+
+    // 1. User switched sector: ALWAYS fly to the selected sector!
+    if (sectorChanged) {
+      // If the currently selected spill is within this new sector, focus on it closely
+      if (selectedSpill?.centroid_lat && selectedSpill?.centroid_lon) {
+        const spillSec = detectSectorForSpill(selectedSpill.centroid_lat, selectedSpill.centroid_lon);
+        if (spillSec === sector) {
+          mapRef.current.flyTo({
+            center: [selectedSpill.centroid_lon, selectedSpill.centroid_lat],
+            zoom: 9.8,
+            speed: 1.2,
+            essential: true,
+          });
+          return;
+        }
+      }
+
+      // If there's an incident in this sector, fly to its coordinates
+      const sectorSpill = (spills || []).find(
+        (s) => detectSectorForSpill(s.centroid_lat, s.centroid_lon) === sector
+      );
+      if (sectorSpill?.centroid_lat && sectorSpill?.centroid_lon) {
+        mapRef.current.flyTo({
+          center: [sectorSpill.centroid_lon, sectorSpill.centroid_lat],
+          zoom: 9.2,
+          speed: 1.2,
+          essential: true,
+        });
+        return;
+      }
+
+      // Otherwise fly directly to the sector geographic center
+      if (SECTORS[sector]) {
+        const s = SECTORS[sector];
+        mapRef.current.flyTo({
+          center: s.center,
+          zoom: s.zoom,
+          speed: 1.2,
+          essential: true,
+        });
+        return;
+      }
+    }
+
+    // 2. User clicked a different spill: fly to that spill
+    if (spillChanged && selectedSpill?.centroid_lat && selectedSpill?.centroid_lon) {
       mapRef.current.flyTo({
         center: [selectedSpill.centroid_lon, selectedSpill.centroid_lat],
         zoom: 9.8,
         speed: 1.2,
+        essential: true,
       });
-    } else if (SECTORS[sector]) {
+      return;
+    }
+
+    // 3. Fallback on initial render
+    if (SECTORS[sector] && !selectedSpill) {
       const s = SECTORS[sector];
       mapRef.current.flyTo({
         center: s.center,
         zoom: s.zoom,
         speed: 1.0,
+        essential: true,
       });
     }
-  }, [sector, selectedSpill]);
+  }, [sector, selectedSpill, spills]);
 
   // Build Deck.gl Layers
   const deckLayers = useMemo(() => {
@@ -694,12 +755,16 @@ export default function TacticalDeckMap({
               },
               onHover: (info) => {
                 if (info.object) {
+                  const isLook = spill.validation_status === 'lookalike' ||
+                                 spill.model_confidence?.classification === 'Look-alike' ||
+                                 spill.name?.toLowerCase().includes('lookalike');
+                  const conf = Math.round(((spill.confidence_score != null ? spill.confidence_score : (isLook ? spill.model_confidence?.lookalike : spill.model_confidence?.oil)) ?? 0.88) * 100);
                   setHoverInfo({
                     x: info.x,
                     y: info.y,
-                    badge: spill.severity === 'low' ? 'LOOK-ALIKE' : 'CONFIRMED SLICK',
+                    badge: isLook ? 'LOOK-ALIKE' : 'CONFIRMED SLICK',
                     title: spill.name,
-                    detail: `Surface Area: ${spill.area_sq_km?.toFixed(1)} km² · Confidence: ${Math.round(((spill.confidence_score != null ? spill.confidence_score : spill.model_confidence?.oil) ?? 0.88) * 100)}% · Est. Age: ${spill.age_estimate || '—'} · Elongation: ${spill.elongation_ratio?.toFixed(1) || '—'}`,
+                    detail: `Surface Area: ${spill.area_sq_km?.toFixed(1)} km² · Confidence: ${conf}% · Est. Age: ${spill.age_estimate || '—'} · Elongation: ${spill.elongation_ratio?.toFixed(1) || '—'}`,
                   });
                 } else {
                   setHoverInfo(null);
