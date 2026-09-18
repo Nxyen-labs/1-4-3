@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func as sqlfunc, text
 from typing import Optional
 from datetime import datetime, timezone
+import asyncio
 import os
 import cv2
 import numpy as np
@@ -298,6 +299,7 @@ async def upload_sar_image(
 
     # 3. Detection via U-Net or Morphological Thresholding
     model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ml", "models", "unet_best.pth")
+    traced_model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ml", "models", "unet_traced.pt")
     area_sq_km = 8.5
     perimeter_km = 14.2
     elongation_ratio = 2.8
@@ -310,7 +312,8 @@ async def upload_sar_image(
     import uuid
     inference_id = uuid.uuid4().hex[:12]
 
-    if os.path.exists(model_path):
+    target_model_file = traced_model_path if os.path.exists(traced_model_path) else model_path
+    if os.path.exists(target_model_file):
         try:
             can_run_unet = True
             try:
@@ -325,17 +328,17 @@ async def upload_sar_image(
                             use_s = f.read().strip()
                         if lim_s != "max" and lim_s.isdigit() and use_s.isdigit():
                             free_mb = (int(lim_s) - int(use_s)) / (1024 * 1024)
-                            if free_mb < 150.0:
+                            if free_mb < 80.0:
                                 can_run_unet = False
-                                print(f"[INFO] Container free memory is {free_mb:.1f} MB (< 150 MB threshold). Using morphological analysis to protect container from SIGKILL.")
+                                print(f"[INFO] Container free memory is {free_mb:.1f} MB (< 80 MB threshold). Using morphological analysis to protect container from SIGKILL.")
                                 break
             except Exception as chk_err:
                 print(f"[DEBUG] Memory check notice: {chk_err}")
 
             if can_run_unet:
                 from ml.predict import load_model, predict_mask, extract_oil_polygons, characterize_geometry
-                model, img_size = load_model(model_path)
-                pred_mask, probs = predict_mask(model, img, image_size=img_size)
+                model, img_size = load_model(target_model_file)
+                pred_mask, probs = await asyncio.to_thread(predict_mask, model, img, image_size=img_size)
                 mask = pred_mask
                 multipoly = extract_oil_polygons(pred_mask, class_id=0, min_area_pixels=30)
                 geom_stats = characterize_geometry(multipoly, pixel_size_m=pixel_pitch)
@@ -608,8 +611,8 @@ async def upload_sar_image(
     await db.refresh(spill)
 
     # Hydrodynamic Drift Trajectories
-    drift_back_sim = run_backward_drift(lat, lon, capture_time, duration_hours=24)
-    drift_fwd_sim = run_forward_drift(lat, lon, capture_time, duration_hours=48)
+    drift_back_sim = await asyncio.to_thread(run_backward_drift, lat, lon, capture_time, duration_hours=24)
+    drift_fwd_sim = await asyncio.to_thread(run_forward_drift, lat, lon, capture_time, duration_hours=48)
 
     drift_back = DriftSimulation(
         spill_id=spill.id,
@@ -633,7 +636,7 @@ async def upload_sar_image(
     db.add(drift_fwd)
 
     # Environmental Impact Assessment
-    gis_impact = assess_spill_environmental_impact(lat, lon, area_sq_km=area_sq_km, slick_geojson=slick_geojson)
+    gis_impact = await asyncio.to_thread(assess_spill_environmental_impact, lat, lon, area_sq_km=area_sq_km, slick_geojson=slick_geojson)
     econ = gis_impact.get("economic_loss", {})
     nat = gis_impact.get("natural_harm", {})
     impact = ImpactAssessment(

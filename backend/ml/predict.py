@@ -22,7 +22,6 @@ def load_model(model_path, device=None):
 
     import gc
     import torch
-    import segmentation_models_pytorch as smp
 
     try:
         torch.set_num_threads(1)
@@ -32,13 +31,28 @@ def load_model(model_path, device=None):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # Priority 1: Check for traced TorchScript model (uses 0.38MB RAM instead of 198MB from SMP)
+    traced_path = os.path.join(os.path.dirname(model_path), "unet_traced.pt")
+    if os.path.exists(traced_path):
+        try:
+            model = torch.jit.load(traced_path, map_location=device)
+            model.eval()
+            _CACHED_MODEL = model
+            _CACHED_IMG_SIZE = 256
+            return _CACHED_MODEL, _CACHED_IMG_SIZE
+        except Exception as e:
+            print(f"[WARN] Failed to load traced model, falling back to checkpoint: {e}")
+
+    # Priority 2: Standard SMP Unet from checkpoint
+    import segmentation_models_pytorch as smp
+
     try:
         checkpoint = torch.load(model_path, map_location=device, mmap=True)
     except Exception:
         checkpoint = torch.load(model_path, map_location=device)
 
     model = smp.Unet(
-        encoder_name=checkpoint.get("encoder", "resnet34"),
+        encoder_name=checkpoint.get("encoder", "resnet18"),
         encoder_weights=None,  # Don't download pretrained — we have our own weights
         in_channels=1,
         classes=checkpoint.get("classes", 3),
@@ -52,7 +66,7 @@ def load_model(model_path, device=None):
     model.to(device)
     model.eval()
 
-    img_sz = checkpoint.get("image_size", 512)
+    img_sz = checkpoint.get("image_size", 256)
     del checkpoint
     gc.collect()
 
