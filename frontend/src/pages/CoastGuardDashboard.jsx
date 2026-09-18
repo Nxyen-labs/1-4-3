@@ -141,19 +141,34 @@ export default function CoastGuardDashboard() {
     }
   };
 
-  const handleDownloadReport = async (spillId) => {
+  const handleDownloadReport = async (spillId, spillName) => {
     if (!spillId) return;
     setDownloadingReport(true);
     try {
       const res = await reportsAPI.downloadPDF(spillId);
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `SARVAS-Forensic-Dossier-Spill-${spillId}.pdf`;
+      const cleanName = (spillName || `Spill-${spillId}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `SARVAS-Forensic-Dossier-${cleanName}.pdf`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Dossier download error:', err);
+      let msg = 'Failed to download dossier.';
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed.detail) msg = parsed.detail;
+        } catch (_) {}
+      } else if (err.response?.data?.detail) {
+        msg = err.response.data.detail;
+      }
+      alert(`Report download notification: ${msg}`);
     } finally {
       setDownloadingReport(false);
     }

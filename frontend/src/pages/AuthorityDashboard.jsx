@@ -31,7 +31,8 @@ export default function AuthorityDashboard() {
   const [states, setStates] = useState([]);
   const [spills, setSpills] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
+  const [downloadError, setDownloadError] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -54,20 +55,38 @@ export default function AuthorityDashboard() {
     }
   };
 
-  const handleDownloadReport = async (spillId) => {
-    setDownloading(true);
+  const handleDownloadReport = async (spillId, spillName) => {
+    setDownloadingId(spillId);
+    setDownloadError(null);
     try {
       const res = await reportsAPI.downloadPDF(spillId);
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `NTRO-Executive-Report-Spill-${spillId}.pdf`;
+      const cleanName = (spillName || `Spill-${spillId}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.download = `NTRO-Executive-Report-${cleanName}.pdf`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Report download error:', err);
+      let msg = 'Failed to generate PDF report.';
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed.detail) msg = parsed.detail;
+        } catch (_) {}
+      } else if (err.response?.data?.detail) {
+        msg = err.response.data.detail;
+      } else if (err.message === 'Network Error' || err.response?.status === 502 || err.response?.status === 503) {
+        msg = 'Cloud server is waking up (Render spin-up). Please wait 10 seconds and try again.';
+      }
+      setDownloadError(msg);
     } finally {
-      setDownloading(false);
+      setDownloadingId(null);
     }
   };
 
@@ -251,6 +270,28 @@ export default function AuthorityDashboard() {
       {/* Executive Spill Reports & PDF Download Section */}
       {activeSection === 'reports' && (
         <>
+          {downloadError && (
+            <div style={{
+              background: '#fee2e2',
+              border: '1px solid #ef4444',
+              color: '#991b1b',
+              padding: '10px 14px',
+              borderRadius: '6px',
+              marginBottom: '14px',
+              fontSize: '0.8125rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span><b>Download Alert:</b> {downloadError}</span>
+              <button
+                onClick={() => setDownloadError(null)}
+                style={{ background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer', fontWeight: 700, fontSize: '1rem' }}
+              >
+                ×
+              </button>
+            </div>
+          )}
           <div className="card" style={{ marginBottom: '16px' }}>
             <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
@@ -297,11 +338,11 @@ export default function AuthorityDashboard() {
                         <td>
                           <button
                             className="btn btn-primary btn-sm"
-                            disabled={downloading}
+                            disabled={downloadingId === s.id}
                             style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
-                            onClick={() => handleDownloadReport(s.id)}
+                            onClick={() => handleDownloadReport(s.id, s.name)}
                           >
-                            {downloading ? 'Preparing Dossier...' : 'Download PDF'}
+                            {downloadingId === s.id ? 'Preparing Dossier...' : 'Download PDF'}
                           </button>
                         </td>
                       </tr>

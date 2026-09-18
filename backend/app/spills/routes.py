@@ -185,7 +185,8 @@ async def upload_sar_image(
     sar_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "sar")
     os.makedirs(sar_dir, exist_ok=True)
 
-    saved_path = os.path.join(sar_dir, file.filename)
+    safe_filename = os.path.basename(file.filename or f"sar_{uuid.uuid4().hex[:8]}.png")
+    saved_path = os.path.join(sar_dir, safe_filename)
     contents = await file.read()
     with open(saved_path, "wb") as f:
         f.write(contents)
@@ -193,7 +194,7 @@ async def upload_sar_image(
     sar_sha256 = hashlib.sha256(contents).hexdigest()
 
     # 1. Parse Capture Timestamp
-    parsed_time, ts_source = parse_capture_timestamp(file.filename)
+    parsed_time, ts_source = parse_capture_timestamp(safe_filename)
     now = datetime.now(timezone.utc)
     capture_time = parsed_time if parsed_time else now
     if not parsed_time:
@@ -202,6 +203,14 @@ async def upload_sar_image(
     # Decode image supporting all formats (PNG, JPG, TIFF, GeoTIFF, BMP, WEBP, ZIP)
     nparr = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        try:
+            import rasterio
+            with rasterio.open(saved_path) as src:
+                arr = src.read(1)
+                img = arr
+        except Exception:
+            pass
     if img is None:
         try:
             from PIL import Image
@@ -340,16 +349,33 @@ async def upload_sar_image(
                 if p.is_valid and not p.is_empty:
                     polys.append(p)
         if polys:
-            multipoly = MultiPolygon(polys)
+            from shapely.ops import unary_union
+            u = unary_union(polys)
+            if isinstance(u, Polygon):
+                multipoly = MultiPolygon([u])
+            elif isinstance(u, MultiPolygon):
+                multipoly = u
+            else:
+                p_list = [p for p in getattr(u, 'geoms', []) if isinstance(p, Polygon)]
+                multipoly = MultiPolygon(p_list) if p_list else None
             mask = thresh
-            total_area_pixels = sum(p.area for p in multipoly.geoms)
-            area_sq_km = round(float((total_area_pixels * (pixel_pitch ** 2)) / 1e6), 2)
-            total_perim_pixels = sum(p.length for p in multipoly.geoms)
-            perimeter_km = round(float((total_perim_pixels * pixel_pitch) / 1e3), 2)
-            num_components = max(1, len(multipoly.geoms))
-            fragmentation_index = round(float(num_components / max(area_sq_km, 0.1)), 2)
-            elongation_ratio = 2.5
-            age_estimate = "fresh" if fragmentation_index < 1.0 else "hours" if fragmentation_index < 5.0 else "day"
+            if multipoly and not multipoly.is_empty:
+                total_area_pixels = sum(p.area for p in multipoly.geoms)
+                area_sq_km = round(float((total_area_pixels * (pixel_pitch ** 2)) / 1e6), 2)
+                total_perim_pixels = sum(p.length for p in multipoly.geoms)
+                perimeter_km = round(float((total_perim_pixels * pixel_pitch) / 1e3), 2)
+                num_components = max(1, len(multipoly.geoms))
+                fragmentation_index = round(float(num_components / max(area_sq_km, 0.1)), 2)
+                elongation_ratio = 2.5
+                age_estimate = "fresh" if fragmentation_index < 1.0 else "hours" if fragmentation_index < 5.0 else "day"
+            else:
+                multipoly = None
+                mask = None
+                area_sq_km = 0.0
+                perimeter_km = 0.0
+                fragmentation_index = 0.0
+                elongation_ratio = 1.0
+                age_estimate = "none"
         elif multipoly is None or multipoly.is_empty:
             # Truly no slick detected (Clean Sea)
             multipoly = None
@@ -632,6 +658,9 @@ async def upload_sar_image(
             acknowledged=False,
         ))
 
+    # Ensure prior records are persisted before attribution queries them
+    await db.flush()
+
     # Attribution check
     if run_attribution.lower() == "true":
         from app.attribution.service import evaluate_spill_suspects
@@ -640,8 +669,17 @@ async def upload_sar_image(
                 await evaluate_spill_suspects(spill, db, top_n=3)
         except Exception as e:
             print(f"[WARN] Attribution run failed: {e}")
+            try:
+                await db.rollback()
+                db.add(spill)
+            except Exception:
+                pass
 
-    await db.commit()
-    await db.refresh(spill)
+    try:
+        await db.commit()
+        await db.refresh(spill)
+    except Exception as e:
+        print(f"[WARN] Final commit error: {e}")
+
     return SpillResponse(**spill_to_response(spill))
 

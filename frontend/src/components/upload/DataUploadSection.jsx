@@ -44,7 +44,13 @@ export default function DataUploadSection({ onUploadSuccess }) {
       setSarResult(res.data);
       if (onUploadSuccess) onUploadSuccess();
     } catch (err) {
-      setSarError(err.response?.data?.detail || 'Failed to analyze SAR image.');
+      let detail = err.response?.data?.detail || err.message || 'Failed to analyze SAR image.';
+      if (Array.isArray(detail)) {
+        detail = detail.map(d => `${d.loc ? d.loc.slice(1).join('.') + ': ' : ''}${d.msg}`).join(', ');
+      } else if (typeof detail === 'object' && detail !== null) {
+        detail = JSON.stringify(detail);
+      }
+      setSarError(detail);
     } finally {
       setSarUploading(false);
     }

@@ -207,8 +207,16 @@ def pixel_polygons_to_geojson(multipoly, georef: GeoRef) -> Optional[dict]:
             continue
     if not out:
         return None
-    mp = MultiPolygon([p for o in out for p in (o.geoms if hasattr(o, "geoms") else [o])])
-    return mapping(mp)
+    from shapely.ops import unary_union
+    u = unary_union(out)
+    if isinstance(u, Polygon):
+        mp = MultiPolygon([u])
+    elif isinstance(u, MultiPolygon):
+        mp = u
+    else:
+        polys = [p for p in getattr(u, "geoms", []) if isinstance(p, Polygon)]
+        mp = MultiPolygon(polys) if polys else None
+    return mapping(mp) if mp is not None else None
 
 
 def geojson_centroid(geojson: dict) -> Tuple[float, float]:

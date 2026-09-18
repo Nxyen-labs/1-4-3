@@ -136,7 +136,15 @@ def extract_oil_polygons(mask, class_id=0, min_area_pixels=100):
                 continue
 
     if polygons:
-        return MultiPolygon(polygons)
+        from shapely.ops import unary_union
+        u = unary_union(polygons)
+        if isinstance(u, Polygon):
+            return MultiPolygon([u])
+        elif isinstance(u, MultiPolygon):
+            return u
+        else:
+            polys = [p for p in getattr(u, 'geoms', []) if isinstance(p, Polygon)]
+            return MultiPolygon(polys) if polys else None
     return None
 
 
