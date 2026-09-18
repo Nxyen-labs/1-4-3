@@ -312,24 +312,41 @@ async def upload_sar_image(
 
     if os.path.exists(model_path):
         try:
-            from ml.predict import load_model, predict_mask, extract_oil_polygons, characterize_geometry
-            model, img_size = load_model(model_path)
-            pred_mask, probs = predict_mask(model, img, image_size=img_size)
-            mask = pred_mask
-            multipoly = extract_oil_polygons(pred_mask, class_id=0, min_area_pixels=30)
-            geom_stats = characterize_geometry(multipoly, pixel_size_m=pixel_pitch)
-            inference_source = "unet"
+            can_run_unet = True
+            try:
+                for limit_file, usage_file in [
+                    ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory.current"),
+                    ("/sys/fs/cgroup/memory/memory.limit_in_bytes", "/sys/fs/cgroup/memory/memory.usage_in_bytes")
+                ]:
+                    if os.path.exists(limit_file) and os.path.exists(usage_file):
+                        with open(limit_file, "r") as f:
+                            lim_s = f.read().strip()
+                        with open(usage_file, "r") as f:
+                            use_s = f.read().strip()
+                        if lim_s != "max" and lim_s.isdigit() and use_s.isdigit():
+                            free_mb = (int(lim_s) - int(use_s)) / (1024 * 1024)
+                            if free_mb < 150.0:
+                                can_run_unet = False
+                                print(f"[INFO] Container free memory is {free_mb:.1f} MB (< 150 MB threshold). Using morphological analysis to protect container from SIGKILL.")
+                                break
+            except Exception as chk_err:
+                print(f"[DEBUG] Memory check notice: {chk_err}")
 
-            if geom_stats["area_sq_km"] > 0:
-                area_sq_km = geom_stats["area_sq_km"]
-                perimeter_km = geom_stats["perimeter_km"]
-                elongation_ratio = geom_stats["elongation_ratio"]
-                fragmentation_index = geom_stats["fragmentation_index"]
-                age_estimate = geom_stats["age_estimate"]
+            if can_run_unet:
+                from ml.predict import load_model, predict_mask, extract_oil_polygons, characterize_geometry
+                model, img_size = load_model(model_path)
+                pred_mask, probs = predict_mask(model, img, image_size=img_size)
+                mask = pred_mask
+                multipoly = extract_oil_polygons(pred_mask, class_id=0, min_area_pixels=30)
+                geom_stats = characterize_geometry(multipoly, pixel_size_m=pixel_pitch)
+                inference_source = "unet"
 
-            # NOTE: We do NOT compute model_confidence here.
-            # Probabilities are extracted once below after mask computation,
-            # then passed through compute_physics_confidence as the single source of truth.
+                if geom_stats["area_sq_km"] > 0:
+                    area_sq_km = geom_stats["area_sq_km"]
+                    perimeter_km = geom_stats["perimeter_km"]
+                    elongation_ratio = geom_stats["elongation_ratio"]
+                    fragmentation_index = geom_stats["fragmentation_index"]
+                    age_estimate = geom_stats["age_estimate"]
         except Exception as e:
             print(f"[WARN] U-Net inference fallback to morphological analysis: {e}")
             probs = None

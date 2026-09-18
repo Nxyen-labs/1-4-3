@@ -21,8 +21,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Invalidate layer cache for application code
-ARG BUILD_VERSION=20260917-3
-ENV BUILD_VERSION=${BUILD_VERSION}
+ARG BUILD_VERSION=20260918-1
+ENV BUILD_VERSION=${BUILD_VERSION} \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    VECLIB_MAXIMUM_THREADS=1 \
+    NUMEXPR_NUM_THREADS=1 \
+    PYTHONUNBUFFERED=1
 
 COPY . .
 

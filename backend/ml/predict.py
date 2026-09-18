@@ -44,7 +44,11 @@ def load_model(model_path, device=None):
         classes=checkpoint.get("classes", 3),
         activation=None,
     )
-    model.load_state_dict(checkpoint["model_state_dict"])
+    try:
+        model.load_state_dict(checkpoint["model_state_dict"], assign=True)
+    except Exception:
+        model.load_state_dict(checkpoint["model_state_dict"])
+
     model.to(device)
     model.eval()
 
