@@ -14,7 +14,7 @@ from app.vessels.models import Vessel
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
-@router.get("/{spill_id}/pdf")
+@router.get("/dossier/{spill_id}")
 async def generate_pdf_report(
     spill_id: int,
     user: User = Depends(RoleChecker(["coast_guard", "regional_manager", "higher_authority"])),

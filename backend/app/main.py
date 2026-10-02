@@ -76,6 +76,14 @@ app.add_middleware(
     expose_headers=["Content-Disposition", "Content-Type", "Content-Length"],
 )
 
+from app.middleware.rate_limiter import RateLimitMiddleware
+from app.middleware.validation import ValidationMiddleware
+from app.middleware.logging_middleware import LoggingMiddleware
+
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(ValidationMiddleware)
+app.add_middleware(LoggingMiddleware)
+
 # --- Register routers ---
 from app.auth.routes import router as auth_router
 from app.spills.routes import router as spills_router
@@ -86,6 +94,9 @@ from app.impact.routes import router as impact_router
 from app.dashboard.routes import router as dashboard_router
 from app.reports.routes import router as reports_router
 from app.gis_routes import router as gis_router
+from app.audit.routes import router as audit_router
+from app.realtime.routes import router as realtime_router
+from app.ais.routes import router as ais_router
 
 app.include_router(auth_router)
 app.include_router(spills_router)
@@ -96,6 +107,9 @@ app.include_router(impact_router)
 app.include_router(dashboard_router)
 app.include_router(reports_router)
 app.include_router(gis_router)
+app.include_router(audit_router)
+app.include_router(realtime_router)
+app.include_router(ais_router)
 
 
 @app.api_route("/", methods=["GET", "HEAD"])

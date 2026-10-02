@@ -87,6 +87,17 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
         region=user.assigned_region,
     )
 
+    from app.audit.service import log_action
+    import asyncio
+    asyncio.create_task(log_action(
+        db=db,
+        user_id=user.id,
+        action="login",
+        resource_type="auth",
+        resource_id=str(user.id),
+        details={"username": user.username, "role": user.role}
+    ))
+
     return TokenResponse(
         access_token=token,
         role=user.role,

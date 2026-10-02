@@ -132,8 +132,12 @@ export default function SarUploadDeck({ onSpillUploaded, onNavigate }) {
       } else if (typeof detail === 'object' && detail !== null) {
         detail = JSON.stringify(detail);
       }
-      if (err.message === 'Network Error' || err.response?.status === 502 || err.response?.status === 503) {
-        detail = 'Cloud server is waking up from inactivity (Render free tier spin-up). Please wait 10 seconds and click Run again.';
+      if (err.message === 'Network Error') {
+        detail = 'Cannot connect to backend at http://localhost:8000. Check console or CORS.';
+      } else if (err.response?.status === 429) {
+        detail = 'Rate limit reached (429). Please wait a moment before trying again.';
+      } else if (err.response?.status === 502 || err.response?.status === 503) {
+        detail = `Server unavailable (${err.response.status}). Check server status.`;
       }
       setErrorMessage(`Ingestion Error: ${detail}`);
     } finally {

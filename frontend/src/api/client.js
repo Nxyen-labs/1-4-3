@@ -142,5 +142,18 @@ export const dashboardAPI = {
 // === Reports API ===
 export const reportsAPI = {
   downloadPDF: (spillId) =>
-    client.get(`/api/reports/${spillId}/pdf`, { responseType: 'blob' }),
+    client.get(`/api/reports/dossier/${spillId}`, { responseType: 'blob' }),
+};
+
+// === Audit API ===
+export const auditAPI = {
+  getLogs: (params) => client.get('/api/audit/logs', { params }),
+  getLogsByResource: (resourceId) => client.get(`/api/audit/logs/${resourceId}`),
+};
+
+// === AIS Stream API ===
+export const aisAPI = {
+  getStatus: () => client.get('/api/ais/status'),
+  start: () => client.post('/api/ais/start'),
+  stop: () => client.post('/api/ais/stop'),
 };

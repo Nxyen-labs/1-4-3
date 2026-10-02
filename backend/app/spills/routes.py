@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
+from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func as sqlfunc, text
 from typing import Optional
@@ -15,8 +16,15 @@ from app.spills.models import Spill
 from app.spills.schemas import (
     SpillResponse, SpillPublic, SpillValidation, SpillListResponse, SpillCreate
 )
+from app.spills.sse import sse_manager
 
 router = APIRouter(prefix="/api/spills", tags=["spills"])
+
+
+@router.get('/upload-progress/{upload_id}')
+async def upload_progress_stream(upload_id: str):
+    sse_manager.create_session(upload_id)
+    return EventSourceResponse(sse_manager.get_stream(upload_id))
 
 
 def spill_to_response(spill: Spill) -> dict:
@@ -161,6 +169,7 @@ async def upload_sar_image(
     pixel_size_m: float = Form(10.0),
     run_attribution: str = Form("true"),
     name: Optional[str] = Form(None),
+    upload_id: Optional[str] = Query(None),
     user: User = Depends(RoleChecker(["coast_guard", "regional_manager", "higher_authority"])),
     db: AsyncSession = Depends(get_db),
 ):
@@ -181,6 +190,9 @@ async def upload_sar_image(
     )
     from app.spills.detection_physics import extract_sar_features, compute_physics_confidence
     from shapely.geometry import Polygon, MultiPolygon
+
+    if upload_id:
+        await sse_manager.update_progress(upload_id, "calibrating", 10, "Calibrating and parsing SAR image...")
 
     # Ensure upload directory exists
     sar_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "sar")
@@ -298,6 +310,9 @@ async def upload_sar_image(
         georef_note = "APPROXIMATE: no GeoTIFF affine metadata found in file"
 
     # 3. Detection via U-Net or Morphological Thresholding
+    if upload_id:
+        await sse_manager.update_progress(upload_id, "segmenting", 30, "Segmenting oil spill features...")
+        
     model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ml", "models", "unet_best.pth")
     traced_model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ml", "models", "unet_traced.pt")
     area_sq_km = 8.5
@@ -427,6 +442,9 @@ async def upload_sar_image(
         c_lat, c_lon = geojson_centroid(slick_geojson)
         lat = c_lat
         lon = c_lon
+
+    if upload_id:
+        await sse_manager.update_progress(upload_id, "wind_gating", 50, "Evaluating wind gate constraints...")
 
     # Sample wind for wind gate & physics
     _, _, w_u, w_v, _, _, _ = sample_forcing_vector(lat, lon, capture_time)
@@ -610,6 +628,9 @@ async def upload_sar_image(
     await db.flush()
     await db.refresh(spill)
 
+    if upload_id:
+        await sse_manager.update_progress(upload_id, "drift_simulating", 70, "Simulating hydrodynamic drift trajectories...")
+
     # Hydrodynamic Drift Trajectories
     drift_back_sim = await asyncio.to_thread(run_backward_drift, lat, lon, capture_time, duration_hours=24)
     drift_fwd_sim = await asyncio.to_thread(run_forward_drift, lat, lon, capture_time, duration_hours=48)
@@ -683,6 +704,8 @@ async def upload_sar_image(
 
     # Attribution check
     if run_attribution.lower() == "true":
+        if upload_id:
+            await sse_manager.update_progress(upload_id, "attributing", 85, "Correlating with AIS data for vessel attribution...")
         from app.attribution.service import evaluate_spill_suspects
         try:
             if not is_lookalike_scene and predicted_class != "No oil":
@@ -700,6 +723,30 @@ async def upload_sar_image(
         await db.refresh(spill)
     except Exception as e:
         print(f"[WARN] Final commit error: {e}")
+
+    if upload_id:
+        await sse_manager.update_progress(upload_id, "complete", 100, "Processing complete.")
+
+    from app.audit.service import log_action
+    asyncio.create_task(log_action(
+        db=db,
+        user_id=user.id,
+        action="upload",
+        resource_type="spill",
+        resource_id=str(spill.id),
+        details={"name": spill.name, "area_sq_km": area_sq_km, "region": region}
+    ))
+
+    # Real-time broadcast
+    try:
+        from app.realtime.manager import manager
+        asyncio.create_task(manager.send_to_role("coast_guard", {
+            "type": "new_spill",
+            "spill_id": spill.id,
+            "severity": spill.severity
+        }))
+    except Exception as e:
+        print(f"[WARN] Failed to broadcast realtime event: {e}")
 
     return SpillResponse(**spill_to_response(spill))
 
